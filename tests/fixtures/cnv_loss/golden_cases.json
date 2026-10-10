@@ -1,0 +1,50 @@
+[
+  {
+    "id": "CASE-LOSS-SMS-17P11",
+    "description": "17p11.2 (RAI1) Smith-Magenis 经典胚系缺失",
+    "cnv": {
+      "assembly": "GRCh38",
+      "chrom": "17",
+      "start": 16500000,
+      "end": 20500000,
+      "type": "loss"
+    },
+    "case_control_stat_sig": false,
+    "case_reports_count": 0,
+    "inheritance": "unknown",
+    "expected_score": "1.00",
+    "expected_classification": "Pathogenic"
+  },
+  {
+    "id": "CASE-LOSS-GENE-DESERT",
+    "description": "无功能元件的非编码基因沙漠缺失",
+    "cnv": {
+      "assembly": "GRCh38",
+      "chrom": "2",
+      "start": 1000,
+      "end": 5000,
+      "type": "loss"
+    },
+    "case_control_stat_sig": false,
+    "case_reports_count": 0,
+    "inheritance": "unknown",
+    "expected_score": "-0.60",
+    "expected_classification": "VUS"
+  },
+  {
+    "id": "CASE-LOSS-BENIGN-REGION",
+    "description": "完全落入良性缺失多态性区域",
+    "cnv": {
+      "assembly": "GRCh38",
+      "chrom": "1",
+      "start": 72100000,
+      "end": 72400000,
+      "type": "loss"
+    },
+    "case_control_stat_sig": false,
+    "case_reports_count": 0,
+    "inheritance": "unknown",
+    "expected_score": "-1.00",
+    "expected_classification": "Benign"
+  }
+]

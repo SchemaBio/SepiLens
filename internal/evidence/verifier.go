@@ -1,0 +1,118 @@
+package evidence
+
+import (
+	"regexp"
+	"strings"
+)
+
+var (
+	reDigits   = regexp.MustCompile(`^\d{1,10}$`)
+	reDOI      = regexp.MustCompile(`(?i)^10\.\d{4,9}/[-._;()/:A-Za-z0-9]+$`)
+	reClinVar  = regexp.MustCompile(`(?i)^(VCV\d+(\.\d+)?|RCV\d+(\.\d+)?|\d+)$`)
+)
+
+type SourceVerifier struct{}
+
+func NewSourceVerifier() *SourceVerifier {
+	return &SourceVerifier{}
+}
+
+func (sv *SourceVerifier) VerifySource(src *Source) {
+	if src == nil {
+		return
+	}
+
+	src.PMID = strings.TrimSpace(src.PMID)
+	src.DOI = strings.TrimSpace(src.DOI)
+	src.ClinVarID = strings.TrimSpace(src.ClinVarID)
+
+	switch src.Type {
+	case SourceTypePubMed:
+		if src.PMID != "" && reDigits.MatchString(src.PMID) {
+			src.ValidationStatus = ValidationVerified
+		} else if src.DOI != "" && reDOI.MatchString(src.DOI) {
+			src.ValidationStatus = ValidationVerified
+		} else {
+			src.ValidationStatus = ValidationUnverified
+		}
+	case SourceTypeClinVar:
+		if src.ClinVarID != "" && reClinVar.MatchString(src.ClinVarID) {
+			src.ValidationStatus = ValidationVerified
+		} else {
+			src.ValidationStatus = ValidationUnverified
+		}
+	case SourceTypeClinGenDosage, SourceTypeCuratedSnapshot:
+		src.ValidationStatus = ValidationVerified
+	case SourceTypeWebSearch:
+		// Web search findings remain unverified until corroborated
+		if src.ValidationStatus == "" {
+			src.ValidationStatus = ValidationUnverified
+		}
+	default:
+		if src.ValidationStatus == "" {
+			src.ValidationStatus = ValidationUnverified
+		}
+	}
+}
+
+// EnforceEvidenceIntegrity guarantees medical invariant:
+// An evidence item cannot claim "verified" unless all of its cited sources are verified.
+// Items with unverified sources or no sources are downgraded from StatusMet to StatusProposedMet.
+func (sv *SourceVerifier) EnforceEvidenceIntegrity(items []EvidenceItem, sources []Source) []EvidenceItem {
+	verifiedSources := make(map[string]bool, len(sources))
+	for _, s := range sources {
+		if s.ValidationStatus == ValidationVerified {
+			verifiedSources[s.ID] = true
+		}
+	}
+
+	out := make([]EvidenceItem, len(items))
+	for i, it := range items {
+		hasAllVerified := len(it.SourceIDs) > 0
+		for _, sID := range it.SourceIDs {
+			if !verifiedSources[sID] {
+				hasAllVerified = false
+				break
+			}
+		}
+
+		if hasAllVerified {
+			it.SourceValidation = "verified"
+		} else {
+			it.SourceValidation = "unverified"
+			it.ReviewRequired = true
+			if it.Status == StatusMet {
+				it.Status = StatusProposedMet
+				it.MissingInformation = append(it.MissingInformation, "source verification pending")
+			}
+		}
+		out[i] = it
+	}
+	return out
+}
+
+// DetectDuplicateCases inspects case counts across sources citing the same publication or registry ID
+func (sv *SourceVerifier) DetectDuplicateCases(sources []Source) int {
+	seenIdentifiers := make(map[string]bool)
+	totalCases := 0
+
+	for _, s := range sources {
+		key := s.PMID
+		if key == "" {
+			key = s.DOI
+		}
+		if key == "" {
+			key = s.URL
+		}
+
+		if key != "" && seenIdentifiers[key] {
+			// Duplicate paper citation: do not count duplicate case numbers
+			continue
+		}
+		if key != "" {
+			seenIdentifiers[key] = true
+		}
+		totalCases += s.CaseCount
+	}
+	return totalCases
+}

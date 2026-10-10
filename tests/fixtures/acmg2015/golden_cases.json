@@ -1,0 +1,105 @@
+[
+  {
+    "id": "CASE-ACMG-CFTR-G542X",
+    "description": "CFTR p.Gly542X 经典无义突变",
+    "variant": {
+      "assembly": "GRCh38",
+      "chrom": "chr7",
+      "pos": 117548628,
+      "ref": "G",
+      "alt": "T",
+      "transcript": "NM_000492.3",
+      "hgvs_c": "c.1624G>T",
+      "hgvs_p": "p.Gly542Ter",
+      "gene": "CFTR",
+      "consequence": "nonsense",
+      "allele_frequency": 0.00002
+    },
+    "clinical_context": {
+      "disease_id": "MONDO:0009061",
+      "inheritance": "AR"
+    },
+    "sources": [
+      {
+        "id": "SRC-CFTR-FUNC-01",
+        "type": "pubmed",
+        "pmid": "12345678",
+        "title": "Loss of CFTR conductance in G542X",
+        "snippet": "Damaging functional assay shows absent chloride permeability.",
+        "validation_status": "verified"
+      }
+    ],
+    "expected_classification": "Pathogenic",
+    "expected_vcep": true
+  },
+  {
+    "id": "CASE-ACMG-BENIGN-POLYMORPHISM",
+    "description": "高频中性多态性位点 (AF > 5%)",
+    "variant": {
+      "assembly": "GRCh38",
+      "chrom": "chr1",
+      "pos": 1000000,
+      "ref": "C",
+      "alt": "T",
+      "gene": "GENE_POLY",
+      "consequence": "missense",
+      "allele_frequency": 0.075
+    },
+    "clinical_context": {
+      "disease_id": "MONDO:0000001",
+      "inheritance": "AD"
+    },
+    "sources": [],
+    "expected_classification": "Benign",
+    "expected_vcep": false
+  },
+  {
+    "id": "CASE-ACMG-SYNONYMOUS-BENIGN",
+    "description": "同义突变且人群频率偏高 (BS1 + BP7)",
+    "variant": {
+      "assembly": "GRCh38",
+      "chrom": "chr2",
+      "pos": 2000000,
+      "ref": "A",
+      "alt": "G",
+      "gene": "GENE_SYN",
+      "consequence": "synonymous",
+      "allele_frequency": 0.015
+    },
+    "clinical_context": {
+      "disease_id": "MONDO:0000002",
+      "inheritance": "AD"
+    },
+    "sources": [],
+    "expected_classification": "Likely benign",
+    "expected_vcep": false
+  },
+  {
+    "id": "CASE-ACMG-CONFLICT-VUS",
+    "description": "致病性无义突变与超高人群频率冲突 (PVS1 vs BA1)",
+    "variant": {
+      "assembly": "GRCh38",
+      "chrom": "chr7",
+      "pos": 117548628,
+      "ref": "G",
+      "alt": "T",
+      "gene": "CFTR",
+      "consequence": "nonsense",
+      "allele_frequency": 0.08
+    },
+    "clinical_context": {
+      "disease_id": "MONDO:0009061",
+      "inheritance": "AR"
+    },
+    "sources": [
+      {
+        "id": "SRC-CONFLICT",
+        "snippet": "Damaging functional assay",
+        "validation_status": "verified"
+      }
+    ],
+    "expected_classification": "VUS",
+    "expected_vcep": true,
+    "expect_conflict": true
+  }
+]

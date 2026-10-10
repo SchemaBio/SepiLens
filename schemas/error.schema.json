@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SepiLensErrorResponse",
+  "type": "object",
+  "required": ["error"],
+  "properties": {
+    "error": {
+      "type": "object",
+      "required": ["code", "message", "request_id", "retryable"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "AUTH_FAILED",
+            "UNKNOWN_ENGINE",
+            "RULESET_NOT_AVAILABLE",
+            "KNOWLEDGE_NOT_LOADED",
+            "INVALID_VARIANT",
+            "INVALID_COORDINATE_SYSTEM",
+            "ASSEMBLY_MISMATCH",
+            "UNSUPPORTED_VARIANT_ORIGIN",
+            "NEEDS_CLINICAL_CONTEXT",
+            "IDEMPOTENCY_CONFLICT",
+            "JOB_NOT_FOUND",
+            "CANCELLED",
+            "PROVIDER_CAPABILITY_MISMATCH",
+            "PROVIDER_UNAVAILABLE",
+            "INTERNAL_ERROR",
+            "BAD_REQUEST"
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

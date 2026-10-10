@@ -1,0 +1,36 @@
+[
+  {
+    "id": "CASE-GAIN-DIGEORGE-22Q11",
+    "description": "22q11.2 经典三倍敏感性重复",
+    "cnv": {
+      "assembly": "GRCh38",
+      "chrom": "22",
+      "start": 18500000,
+      "end": 22000000,
+      "type": "gain"
+    },
+    "tandem_orientation_known": true,
+    "case_control_stat_sig": false,
+    "case_reports_count": 0,
+    "inheritance": "unknown",
+    "expected_score": "1.00",
+    "expected_classification": "Pathogenic"
+  },
+  {
+    "id": "CASE-GAIN-BENIGN-REGION",
+    "description": "完全落入已知良性增益多态性区域",
+    "cnv": {
+      "assembly": "GRCh38",
+      "chrom": "1",
+      "start": 72100000,
+      "end": 72400000,
+      "type": "gain"
+    },
+    "tandem_orientation_known": true,
+    "case_control_stat_sig": false,
+    "case_reports_count": 0,
+    "inheritance": "unknown",
+    "expected_score": "-1.00",
+    "expected_classification": "Benign"
+  }
+]

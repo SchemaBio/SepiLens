@@ -1,0 +1,411 @@
+openapi: 3.1.0
+info:
+  title: SepiLens Medical AI Interpretation API
+  version: 0.1.0-alpha
+  description: >
+    独立、可审计的医学 AI 增强解读与表型提取 API 服务。
+    实现 HPO 术语提取、ACMG/AMP 2015 序列变异解释、ClinGen 2020 CNV Loss/Gain 评级。
+servers:
+  - url: http://localhost:8080
+    description: Local API server
+paths:
+  /healthz:
+    get:
+      summary: Service Liveness Probe
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /readyz:
+    get:
+      summary: Service Readiness Probe
+      responses:
+        '200':
+          description: Ready
+        '503':
+          description: Database not ready
+
+  /v1/capabilities:
+    get:
+      summary: Query system capabilities and engine status matrix
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Capabilities descriptors
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/rulesets:
+    get:
+      summary: Query registered ruleset specifications and hashes
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: List of rulesets
+
+  /v1/providers/test:
+    post:
+      summary: Test custom model endpoint connectivity with SSRF guard
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [protocol]
+              properties:
+                protocol:
+                  type: string
+                  example: openai_responses
+                base_url:
+                  type: string
+                  example: https://api.openai.com/v1
+                model:
+                  type: string
+                  example: gpt-4o
+                api_key:
+                  type: string
+      responses:
+        '200':
+          description: Provider validated successfully
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/hpo/extract:
+    post:
+      summary: Extract standardized HPO terms from clinical narrative
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [json, tsv]
+        - name: stream
+          in: query
+          schema:
+            type: boolean
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text:
+                  type: string
+      responses:
+        '200':
+          description: Extraction results (JSON or TSV or SSE)
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/variants/snv/evaluations:
+    post:
+      summary: Submit SNV/InDel sequence variant interpretation job
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [engine_id, variant, clinical_context]
+              properties:
+                engine_id:
+                  type: string
+                  enum: [acmg_amp_2015, svc_v4]
+                variant:
+                  type: object
+                  required: [assembly, chrom, pos, ref, alt, gene]
+                  properties:
+                    assembly:
+                      type: string
+                      enum: [GRCh37, GRCh38]
+                    chrom:
+                      type: string
+                    pos:
+                      type: integer
+                    ref:
+                      type: string
+                    alt:
+                      type: string
+                    gene:
+                      type: string
+                    transcript:
+                      type: string
+                    hgvs_c:
+                      type: string
+                    hgvs_p:
+                      type: string
+                    consequence:
+                      type: string
+                    allele_frequency:
+                      type: number
+                clinical_context:
+                  type: object
+                  required: [disease_id, inheritance]
+                  properties:
+                    disease_id:
+                      type: string
+                    inheritance:
+                      type: string
+                    variant_origin:
+                      type: string
+                options:
+                  type: object
+                  properties:
+                    web_search:
+                      type: boolean
+                      description: Optional toggle to enable literature and evidence retrieval
+                    retrieval_mode:
+                      type: string
+                      enum: [off, targeted, deep]
+                      description: Retrieval mode (off=strictly offline, targeted=up to 3 requests, deep=up to 10 requests)
+                    provider_profile_id:
+                      type: string
+      responses:
+        '202':
+          description: Evaluation job accepted and processed
+        '409':
+          description: Ruleset disabled or idempotency conflict
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/variants/cnv/evaluations:
+    post:
+      summary: Submit constitutional CNV interpretation job (Loss or Gain)
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [engine_id, cnv, clinical_context]
+              properties:
+                engine_id:
+                  type: string
+                  enum: [cnv_loss_2020, cnv_gain_2020]
+                cnv:
+                  type: object
+                  required: [assembly, chrom, start, end, coordinate_system, type]
+                  properties:
+                    assembly:
+                      type: string
+                      enum: [GRCh37, GRCh38]
+                    chrom:
+                      type: string
+                    start:
+                      type: integer
+                    end:
+                      type: integer
+                    coordinate_system:
+                      type: string
+                      example: 1-based-inclusive
+                    type:
+                      type: string
+                      enum: [loss, gain]
+                clinical_context:
+                  type: object
+                  properties:
+                    variant_origin:
+                      type: string
+                      enum: [germline_confirmed, somatic_confirmed, unknown]
+                options:
+                  type: object
+                  properties:
+                    web_search:
+                      type: boolean
+                      description: Optional toggle to enable literature and evidence retrieval
+                    retrieval_mode:
+                      type: string
+                      enum: [off, targeted, deep]
+                      description: Retrieval mode (off=strictly offline, targeted=up to 3 requests, deep=up to 10 requests)
+                    provider_profile_id:
+                      type: string
+      responses:
+        '202':
+          description: CNV evaluation job accepted
+        '422':
+          description: Somatic origin or invalid interval rejected
+
+  /v1/evaluations/{id}/evidence:
+    get:
+      summary: Get immutable evidence snapshot (SHA-256 locked) for evaluation
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Evidence snapshot details
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /v1/evaluations/{id}/reviews:
+    post:
+      summary: Record human reviewer decision or expert manual override
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reviewer_id, decision]
+              properties:
+                reviewer_id:
+                  type: string
+                decision:
+                  type: string
+                human_override:
+                  type: boolean
+                reviewed_classification:
+                  type: string
+                reason:
+                  type: string
+      responses:
+        '201':
+          description: Review recorded
+
+  /v1/jobs/{job_id}:
+    get:
+      summary: Get job progress and status
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job status details
+
+  /v1/jobs/{job_id}/events:
+    get:
+      summary: Server-Sent Events stream for execution progress
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: SSE event stream (text/event-stream)
+
+  /v1/jobs/{job_id}/result:
+    get:
+      summary: Get complete evaluation result payload including billing handshake fields
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Evaluation result
+
+  /v1/jobs/{job_id}/cancel:
+    post:
+      summary: Cancel job execution
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job cancelled
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  responses:
+    ErrorResponse:
+      description: Standardized API Error Response
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error]
+            properties:
+              error:
+                type: object
+                required: [code, message, request_id, retryable]
+                properties:
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  request_id:
+                    type: string
+                  retryable:
+                    type: boolean
