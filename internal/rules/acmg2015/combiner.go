@@ -38,10 +38,19 @@ func (c *Combiner) Combine(criteria []AppliedCriterion) ClassificationResult {
 		Classification: ClassVUS,
 	}
 
+	seen := map[CriterionCode]AppliedCriterion{}
 	for _, crit := range criteria {
 		if crit.Status != CriterionStatusMet {
 			continue
 		}
+		if prev, ok := seen[crit.Code]; ok {
+			if prev.EvaluatedStrength != crit.EvaluatedStrength || prev.Direction != crit.Direction {
+				res.Conflicts = append(res.Conflicts, "inconsistent duplicate criterion: "+string(crit.Code))
+				res.ConflictDetected = true
+			}
+			continue
+		}
+		seen[crit.Code] = crit
 
 		if crit.Direction == DirectionPathogenic {
 			switch crit.EvaluatedStrength {
@@ -168,6 +177,10 @@ func (c *Combiner) Combine(criteria []AppliedCriterion) ClassificationResult {
 	res.BenignPath = benignPath
 	if likelyBenignPath != "" {
 		res.BenignPath = likelyBenignPath
+	}
+	if res.ConflictDetected {
+		res.Classification = ClassVUS
+		return res
 	}
 
 	// 5. Conflict Resolution & Final Classification

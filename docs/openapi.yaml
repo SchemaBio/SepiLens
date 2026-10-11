@@ -1,411 +1,4094 @@
-openapi: 3.1.0
-info:
-  title: SepiLens Medical AI Interpretation API
-  version: 0.1.0-alpha
-  description: >
-    独立、可审计的医学 AI 增强解读与表型提取 API 服务。
-    实现 HPO 术语提取、ACMG/AMP 2015 序列变异解释、ClinGen 2020 CNV Loss/Gain 评级。
-servers:
-  - url: http://localhost:8080
-    description: Local API server
-paths:
-  /healthz:
-    get:
-      summary: Service Liveness Probe
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: ok
-
-  /readyz:
-    get:
-      summary: Service Readiness Probe
-      responses:
-        '200':
-          description: Ready
-        '503':
-          description: Database not ready
-
-  /v1/capabilities:
-    get:
-      summary: Query system capabilities and engine status matrix
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-      responses:
-        '200':
-          description: Capabilities descriptors
-        '401':
-          $ref: '#/components/responses/ErrorResponse'
-
-  /v1/rulesets:
-    get:
-      summary: Query registered ruleset specifications and hashes
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-      responses:
-        '200':
-          description: List of rulesets
-
-  /v1/providers/test:
-    post:
-      summary: Test custom model endpoint connectivity with SSRF guard
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [protocol]
-              properties:
-                protocol:
-                  type: string
-                  example: openai_responses
-                base_url:
-                  type: string
-                  example: https://api.openai.com/v1
-                model:
-                  type: string
-                  example: gpt-4o
-                api_key:
-                  type: string
-      responses:
-        '200':
-          description: Provider validated successfully
-        '422':
-          $ref: '#/components/responses/ErrorResponse'
-
-  /v1/hpo/extract:
-    post:
-      summary: Extract standardized HPO terms from clinical narrative
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-      parameters:
-        - name: format
-          in: query
-          schema:
-            type: string
-            enum: [json, tsv]
-        - name: stream
-          in: query
-          schema:
-            type: boolean
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [text]
-              properties:
-                text:
-                  type: string
-      responses:
-        '200':
-          description: Extraction results (JSON or TSV or SSE)
-        '400':
-          $ref: '#/components/responses/ErrorResponse'
-
-  /v1/variants/snv/evaluations:
-    post:
-      summary: Submit SNV/InDel sequence variant interpretation job
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-      parameters:
-        - name: Idempotency-Key
-          in: header
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [engine_id, variant, clinical_context]
-              properties:
-                engine_id:
-                  type: string
-                  enum: [acmg_amp_2015, svc_v4]
-                variant:
-                  type: object
-                  required: [assembly, chrom, pos, ref, alt, gene]
-                  properties:
-                    assembly:
-                      type: string
-                      enum: [GRCh37, GRCh38]
-                    chrom:
-                      type: string
-                    pos:
-                      type: integer
-                    ref:
-                      type: string
-                    alt:
-                      type: string
-                    gene:
-                      type: string
-                    transcript:
-                      type: string
-                    hgvs_c:
-                      type: string
-                    hgvs_p:
-                      type: string
-                    consequence:
-                      type: string
-                    allele_frequency:
-                      type: number
-                clinical_context:
-                  type: object
-                  required: [disease_id, inheritance]
-                  properties:
-                    disease_id:
-                      type: string
-                    inheritance:
-                      type: string
-                    variant_origin:
-                      type: string
-                options:
-                  type: object
-                  properties:
-                    web_search:
-                      type: boolean
-                      description: Optional toggle to enable literature and evidence retrieval
-                    retrieval_mode:
-                      type: string
-                      enum: [off, targeted, deep]
-                      description: Retrieval mode (off=strictly offline, targeted=up to 3 requests, deep=up to 10 requests)
-                    provider_profile_id:
-                      type: string
-      responses:
-        '202':
-          description: Evaluation job accepted and processed
-        '409':
-          description: Ruleset disabled or idempotency conflict
-        '422':
-          $ref: '#/components/responses/ErrorResponse'
-
-  /v1/variants/cnv/evaluations:
-    post:
-      summary: Submit constitutional CNV interpretation job (Loss or Gain)
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-      parameters:
-        - name: Idempotency-Key
-          in: header
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [engine_id, cnv, clinical_context]
-              properties:
-                engine_id:
-                  type: string
-                  enum: [cnv_loss_2020, cnv_gain_2020]
-                cnv:
-                  type: object
-                  required: [assembly, chrom, start, end, coordinate_system, type]
-                  properties:
-                    assembly:
-                      type: string
-                      enum: [GRCh37, GRCh38]
-                    chrom:
-                      type: string
-                    start:
-                      type: integer
-                    end:
-                      type: integer
-                    coordinate_system:
-                      type: string
-                      example: 1-based-inclusive
-                    type:
-                      type: string
-                      enum: [loss, gain]
-                clinical_context:
-                  type: object
-                  properties:
-                    variant_origin:
-                      type: string
-                      enum: [germline_confirmed, somatic_confirmed, unknown]
-                options:
-                  type: object
-                  properties:
-                    web_search:
-                      type: boolean
-                      description: Optional toggle to enable literature and evidence retrieval
-                    retrieval_mode:
-                      type: string
-                      enum: [off, targeted, deep]
-                      description: Retrieval mode (off=strictly offline, targeted=up to 3 requests, deep=up to 10 requests)
-                    provider_profile_id:
-                      type: string
-      responses:
-        '202':
-          description: CNV evaluation job accepted
-        '422':
-          description: Somatic origin or invalid interval rejected
-
-  /v1/evaluations/{id}/evidence:
-    get:
-      summary: Get immutable evidence snapshot (SHA-256 locked) for evaluation
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Evidence snapshot details
-        '404':
-          $ref: '#/components/responses/ErrorResponse'
-
-  /v1/evaluations/{id}/reviews:
-    post:
-      summary: Record human reviewer decision or expert manual override
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [reviewer_id, decision]
-              properties:
-                reviewer_id:
-                  type: string
-                decision:
-                  type: string
-                human_override:
-                  type: boolean
-                reviewed_classification:
-                  type: string
-                reason:
-                  type: string
-      responses:
-        '201':
-          description: Review recorded
-
-  /v1/jobs/{job_id}:
-    get:
-      summary: Get job progress and status
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-      parameters:
-        - name: job_id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Job status details
-
-  /v1/jobs/{job_id}/events:
-    get:
-      summary: Server-Sent Events stream for execution progress
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-      parameters:
-        - name: job_id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: SSE event stream (text/event-stream)
-
-  /v1/jobs/{job_id}/result:
-    get:
-      summary: Get complete evaluation result payload including billing handshake fields
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-      parameters:
-        - name: job_id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Evaluation result
-
-  /v1/jobs/{job_id}/cancel:
-    post:
-      summary: Cancel job execution
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-      parameters:
-        - name: job_id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Job cancelled
-
-components:
-  securitySchemes:
-    BearerAuth:
-      type: http
-      scheme: bearer
-    ApiKeyAuth:
-      type: apiKey
-      in: header
-      name: X-API-Key
-
-  responses:
-    ErrorResponse:
-      description: Standardized API Error Response
-      content:
-        application/json:
-          schema:
-            type: object
-            required: [error]
-            properties:
-              error:
-                type: object
-                required: [code, message, request_id, retryable]
-                properties:
-                  code:
-                    type: string
-                  message:
-                    type: string
-                  request_id:
-                    type: string
-                  retryable:
-                    type: boolean
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SepiLens API",
+    "version": "0.2.0-rc2",
+    "description": "Engineering candidate. All medical engines default disabled; SVC v4 is available only through explicit experimental opt-in, never for clinical use. Clinical approval and live vendor verification are separate gates."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8080"
+    }
+  ],
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "summary": "Health/readiness probe",
+        "operationId": "get_healthz",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/readyz": {
+      "get": {
+        "summary": "Health/readiness probe",
+        "operationId": "get_readyz",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/capabilities": {
+      "get": {
+        "summary": "Fixed five engine statuses and implemented protocols",
+        "operationId": "get_v1_capabilities",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapabilitiesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/rulesets": {
+      "get": {
+        "summary": "Rule versions and approval state",
+        "operationId": "get_v1_rulesets",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tenant/data": {
+      "delete": {
+        "summary": "Admin: permanently delete current tenant clinical data and profiles",
+        "operationId": "delete_v1_tenant_data",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/providers/test": {
+      "post": {
+        "summary": "Admin: paid real connectivity/schema/stream probe; tri-state capabilities",
+        "operationId": "post_v1_providers_test",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderTestRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/providers/{profile_id}": {
+      "get": {
+        "summary": "Admin: tenant profile; never returns API key",
+        "operationId": "get_v1_providers__profile_id_",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfilePublic"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "put": {
+        "summary": "Admin: tenant profile; never returns API key",
+        "operationId": "put_v1_providers__profile_id_",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfilePublic"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderTestRequest"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Admin: tenant profile; never returns API key",
+        "operationId": "delete_v1_providers__profile_id_",
+        "responses": {
+          "204": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/hpo/extract": {
+      "post": {
+        "summary": "Transient HPO extraction; explicit local fallback only; no raw text persistence",
+        "operationId": "post_v1_hpo_extract",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtractionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Simulation queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobAccepted"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HPOExtractRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/variants/snv/evaluations": {
+      "post": {
+        "summary": "Persist and queue; approved rules required for germline production; unknown origin evidence_only",
+        "operationId": "post_v1_variants_snv_evaluations",
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobAccepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Idempotent replay; no new external invocation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobAccepted"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SNVEvaluationRequest"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "maxLength": 256
+            },
+            "description": "Unique per tenant. Same pinned normalized request replays; conflicting request returns 409."
+          }
+        ]
+      }
+    },
+    "/v1/variants/cnv/evaluations": {
+      "post": {
+        "summary": "Persist and queue; approved rules required for germline production; unknown origin evidence_only",
+        "operationId": "post_v1_variants_cnv_evaluations",
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobAccepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Idempotent replay; no new external invocation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobAccepted"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CNVEvaluationRequest"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "maxLength": 256
+            },
+            "description": "Unique per tenant. Same pinned normalized request replays; conflicting request returns 409."
+          }
+        ]
+      }
+    },
+    "/v1/jobs/{job_id}": {
+      "get": {
+        "summary": "Tenant-scoped job status",
+        "operationId": "get_v1_jobs__job_id_",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Delete job and associated clinical records",
+        "operationId": "delete_v1_jobs__job_id_",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/jobs/{job_id}/events": {
+      "get": {
+        "summary": "Persistent SSE; 15s heartbeat and terminal close",
+        "operationId": "get_v1_jobs__job_id__events",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "id: integer; event: stage; data: JSON. Replay strictly after Last-Event-ID; heartbeat comments."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Last-Event-ID",
+            "in": "header",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ]
+      }
+    },
+    "/v1/jobs/{job_id}/result": {
+      "get": {
+        "summary": "Three-layer versioned result; reads are free",
+        "operationId": "get_v1_jobs__job_id__result",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationResultPayload"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Still queued/running"
+          },
+          "410": {
+            "description": "Cancelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/jobs/{job_id}/cancel": {
+      "post": {
+        "summary": "Cancel queued/running; completion cannot overwrite cancellation",
+        "operationId": "post_v1_jobs__job_id__cancel",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/jobs/{job_id}/audit": {
+      "get": {
+        "summary": "Export encrypted-at-rest history after tenant authorization",
+        "operationId": "get_v1_jobs__job_id__audit",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditExport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/evaluations/{id}/reviews": {
+      "post": {
+        "summary": "Reviewer/admin: accept, reject, override or revise evidence at matching revision",
+        "operationId": "post_v1_evaluations__id__reviews",
+        "responses": {
+          "201": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddReviewRequest"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/evaluations/{id}/evidence": {
+      "get": {
+        "summary": "Latest immutable snapshot; hash/authentication checked",
+        "operationId": "get_v1_evaluations__id__evidence",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceSnapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Binds tenant, actor and role; cannot be overridden in request body."
+      }
+    },
+    "schemas": {
+      "APIError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "message",
+          "request_id",
+          "retryable"
+        ]
+      },
+      "AddReviewRequest": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "corrections": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/EvidenceItem"
+            }
+          },
+          "verified_sources": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "reviewer_id": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "accept_engine_result",
+              "reject",
+              "override",
+              "revise_evidence"
+            ]
+          },
+          "human_override": {
+            "type": "boolean"
+          },
+          "reviewed_classification": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "revision",
+          "decision",
+          "reason"
+        ]
+      },
+      "AgentProposal": {
+        "type": "object",
+        "properties": {
+          "experimental_result": {
+            "$ref": "#/components/schemas/DraftResult"
+          },
+          "evidence": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/EvidenceItem"
+            }
+          },
+          "missing_information": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "model": {
+            "type": "object",
+            "properties": {
+              "summary": {
+                "type": "string"
+              },
+              "missing_information": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": true,
+        "description": "Untrusted suggestions. Legacy unverified data may be wrapped here; it never substitutes for rule_engine_result."
+      },
+      "AppliedCriterion": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "evaluated_strength": {
+            "type": "string"
+          },
+          "direction": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "source_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "facts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "evaluated_strength",
+          "direction",
+          "status",
+          "rationale"
+        ]
+      },
+      "AuditExport": {
+        "type": "object",
+        "description": "Decrypted tenant-scoped export; contains sensitive structured clinical data. Includes job, reviews, current snapshot, result_history and evidence_history.",
+        "additionalProperties": true
+      },
+      "CNVContext": {
+        "type": "object",
+        "properties": {
+          "variant_origin": {
+            "type": "string",
+            "enum": [
+              "germline_confirmed",
+              "unknown"
+            ]
+          },
+          "sample_type": {
+            "type": "string",
+            "enum": [
+              "blood",
+              "saliva",
+              "buccal",
+              "fibroblast",
+              "tissue",
+              "other",
+              "unknown"
+            ]
+          },
+          "disease_id": {
+            "type": "string"
+          },
+          "hpo_terms": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "variant_origin",
+          "sample_type",
+          "hpo_terms"
+        ]
+      },
+      "CNVEvaluationRequest": {
+        "type": "object",
+        "properties": {
+          "evidence": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/EvidenceItem"
+            }
+          },
+          "sources": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/Source"
+            }
+          },
+          "engine_id": {
+            "type": "string"
+          },
+          "cnv": {
+            "$ref": "#/components/schemas/CNVRegion"
+          },
+          "clinical_context": {
+            "$ref": "#/components/schemas/CNVContext"
+          },
+          "options": {
+            "$ref": "#/components/schemas/EvaluationOptions"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "engine_id",
+          "cnv",
+          "clinical_context",
+          "options"
+        ]
+      },
+      "CNVRegion": {
+        "type": "object",
+        "properties": {
+          "orientation": {
+            "type": "string"
+          },
+          "assembly": {
+            "type": "string"
+          },
+          "chrom": {
+            "type": "string"
+          },
+          "start": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "end": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "coordinate_system": {
+            "type": "string",
+            "enum": [
+              "1-based-inclusive",
+              "0-based-half-open"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "loss",
+              "gain"
+            ]
+          },
+          "copy_number": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "breakpoint_precision": {
+            "type": "string"
+          },
+          "mosaicism": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "assembly",
+          "chrom",
+          "start",
+          "end",
+          "coordinate_system",
+          "type"
+        ]
+      },
+      "CNVRuleResult": {
+        "type": "object",
+        "properties": {
+          "engine_id": {
+            "type": "string"
+          },
+          "total_score": {
+            "type": "string"
+          },
+          "total_score_hundredths": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "classification": {
+            "type": "string"
+          },
+          "clauses": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/Clause"
+            }
+          },
+          "review_required": {
+            "type": "boolean"
+          },
+          "missing_information": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "engine_id",
+          "total_score",
+          "total_score_hundredths",
+          "classification",
+          "clauses",
+          "review_required",
+          "status"
+        ]
+      },
+      "CapabilitiesResponse": {
+        "type": "object",
+        "properties": {
+          "hpo_candidate_extraction_available": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "string"
+          },
+          "engines": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/Descriptor"
+            }
+          },
+          "retrieval_modes": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "simulation_enabled": {
+            "type": "boolean"
+          },
+          "supported_protocols": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "hpo_candidate_extraction_available",
+          "version",
+          "engines",
+          "retrieval_modes",
+          "simulation_enabled",
+          "supported_protocols"
+        ]
+      },
+      "Case": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "family_id": {
+            "type": "string"
+          },
+          "sex": {
+            "type": "string"
+          },
+          "pheno_specificity_for_mde": {
+            "type": "string"
+          },
+          "pheno_severity": {
+            "type": "string"
+          },
+          "age_matched_penetrance": {
+            "type": "string"
+          },
+          "confirmed_parental_relationship": {
+            "type": "string"
+          },
+          "vbc_zygosity": {
+            "type": "string"
+          },
+          "testing": {
+            "$ref": "#/components/schemas/Testing"
+          },
+          "compound_het_variant": {
+            "$ref": "#/components/schemas/OtherVariant"
+          },
+          "additional_variants": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/OtherVariant"
+            }
+          },
+          "relatives": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/Relative"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "family_id"
+        ]
+      },
+      "CaseControl": {
+        "type": "object",
+        "properties": {
+          "odds_ratio": {
+            "type": "string"
+          },
+          "ci_lower": {
+            "type": "string"
+          },
+          "ci_upper": {
+            "type": "string"
+          },
+          "case_variant_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "case_cohort_size": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "controls_matched": {
+            "type": "boolean"
+          },
+          "ascertainment_bias_considered": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "case_variant_count",
+          "case_cohort_size",
+          "controls_matched",
+          "ascertainment_bias_considered"
+        ]
+      },
+      "Clause": {
+        "type": "object",
+        "properties": {
+          "section": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "score": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "section",
+          "code",
+          "score",
+          "name",
+          "reason"
+        ]
+      },
+      "Descriptor": {
+        "type": "object",
+        "properties": {
+          "experimental_available": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "guideline_version": {
+            "type": "string"
+          },
+          "target_type": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "ruleset_hash": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "experimental_available",
+          "id",
+          "name",
+          "guideline_version",
+          "target_type",
+          "status",
+          "enabled",
+          "ruleset_hash"
+        ]
+      },
+      "DraftAssessment": {
+        "type": "object",
+        "properties": {
+          "upstream_commit": {
+            "type": "string"
+          },
+          "moi": {
+            "type": "string"
+          },
+          "gene_disease_validity": {
+            "type": "string"
+          },
+          "population": {
+            "$ref": "#/components/schemas/Population"
+          },
+          "cases": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/Case"
+            }
+          },
+          "case_control": {
+            "$ref": "#/components/schemas/CaseControl"
+          },
+          "locus_case_id": {
+            "type": "string"
+          },
+          "variant_impact": {
+            "$ref": "#/components/schemas/Impact"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "moi"
+        ]
+      },
+      "DraftResult": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "upstream_commit": {
+            "type": "string"
+          },
+          "ruleset_hash": {
+            "type": "string"
+          },
+          "authoritative": {
+            "type": "boolean"
+          },
+          "inputs_verified": {
+            "type": "boolean"
+          },
+          "clinical_use": {
+            "type": "string"
+          },
+          "classification": {
+            "type": "string"
+          },
+          "vus_subclass": {
+            "type": "string"
+          },
+          "total_points": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^-?[0-9]+(\\.[0-9]{1,6})?$",
+            "description": "Exact decimal points, millionth precision"
+          },
+          "families": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/FamilyResult"
+            }
+          },
+          "missing_information": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "assumptions": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "version",
+          "upstream_commit",
+          "ruleset_hash",
+          "authoritative",
+          "inputs_verified",
+          "clinical_use",
+          "classification",
+          "total_points",
+          "families",
+          "missing_information",
+          "assumptions"
+        ]
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/APIError"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "error"
+        ]
+      },
+      "EvaluationOptions": {
+        "type": "object",
+        "properties": {
+          "allow_experimental": {
+            "type": "boolean"
+          },
+          "allow_local_fallback": {
+            "type": "boolean"
+          },
+          "retrieval_mode": {
+            "type": "string",
+            "enum": [
+              "off",
+              "targeted",
+              "deep"
+            ]
+          },
+          "web_search": {
+            "type": "boolean"
+          },
+          "provider_profile_id": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EvaluationOutput": {
+        "type": "object",
+        "properties": {
+          "classification": {
+            "type": "string"
+          },
+          "combination_path": {
+            "type": "string"
+          },
+          "applied_criteria": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AppliedCriterion"
+            }
+          },
+          "rule_conflicts": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "specification_id": {
+            "type": "string"
+          },
+          "is_vcep": {
+            "type": "boolean"
+          },
+          "review_required": {
+            "type": "boolean"
+          },
+          "missing_information": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "classification",
+          "combination_path",
+          "applied_criteria",
+          "specification_id",
+          "is_vcep",
+          "review_required"
+        ]
+      },
+      "EvaluationResultPayload": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "ruleset_hash": {
+            "type": "string"
+          },
+          "dataset_hash": {
+            "type": "string"
+          },
+          "profile_version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "prompt_version": {
+            "type": "string"
+          },
+          "review_status": {
+            "type": "string"
+          },
+          "evaluation_id": {
+            "type": "string"
+          },
+          "engine_id": {
+            "type": "string"
+          },
+          "result_kind": {
+            "type": "string"
+          },
+          "clinical_use": {
+            "type": "string"
+          },
+          "delivery_status": {
+            "type": "string"
+          },
+          "settlement_eligible": {
+            "type": "boolean"
+          },
+          "agent_proposal": {
+            "$ref": "#/components/schemas/AgentProposal"
+          },
+          "rule_engine_result": {
+            "$ref": "#/components/schemas/RuleEngineResult"
+          },
+          "reviewer_decision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewDecision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "review_required": {
+            "type": "boolean"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/ResourceUsage"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "revision",
+          "ruleset_hash",
+          "dataset_hash",
+          "prompt_version",
+          "review_status",
+          "evaluation_id",
+          "engine_id",
+          "result_kind",
+          "clinical_use",
+          "delivery_status",
+          "settlement_eligible",
+          "agent_proposal",
+          "rule_engine_result",
+          "reviewer_decision",
+          "review_required",
+          "usage"
+        ]
+      },
+      "EvidenceItem": {
+        "type": "object",
+        "properties": {
+          "facts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "case_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "id": {
+            "type": "string"
+          },
+          "engine_id": {
+            "type": "string"
+          },
+          "guideline_version": {
+            "type": "string"
+          },
+          "rule_code": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "suggested_score": {
+            "type": "string"
+          },
+          "score_applied": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "source_validation": {
+            "type": "string"
+          },
+          "review_required": {
+            "type": "boolean"
+          },
+          "rule_conflicts": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "missing_information": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "engine_id",
+          "guideline_version",
+          "rule_code",
+          "status",
+          "reason",
+          "source_validation",
+          "review_required"
+        ]
+      },
+      "EvidenceSnapshot": {
+        "type": "object",
+        "properties": {
+          "legacy_unverified": {
+            "type": "boolean"
+          },
+          "snapshot_id": {
+            "type": "string"
+          },
+          "evaluation_id": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "sources": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/Source"
+            }
+          },
+          "items": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/EvidenceItem"
+            }
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/ProvenanceMetadata"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "legacy_unverified",
+          "snapshot_id",
+          "evaluation_id",
+          "tenant_id",
+          "hash",
+          "sources",
+          "items",
+          "provenance",
+          "created_at"
+        ]
+      },
+      "ExtractionItem": {
+        "type": "object",
+        "properties": {
+          "span_start": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "span_end": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "source": {
+            "type": "string"
+          },
+          "hpo": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "name_cn": {
+            "type": "string"
+          },
+          "definition": {
+            "type": "string"
+          },
+          "definition_cn": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "string"
+          },
+          "remark": {
+            "type": "string"
+          },
+          "original_symptom": {
+            "type": "string"
+          },
+          "polarity": {
+            "type": "string"
+          },
+          "review_required": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "span_start",
+          "span_end",
+          "source",
+          "hpo",
+          "name",
+          "name_cn",
+          "definition",
+          "definition_cn",
+          "confidence",
+          "remark",
+          "polarity",
+          "review_required"
+        ]
+      },
+      "ExtractionResult": {
+        "type": "object",
+        "properties": {
+          "execution_mode": {
+            "type": "string"
+          },
+          "degraded": {
+            "type": "boolean"
+          },
+          "terms": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ExtractionItem"
+            }
+          },
+          "preprocess": {
+            "$ref": "#/components/schemas/PreprocessResult"
+          },
+          "candidate_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "execution_mode",
+          "degraded",
+          "terms",
+          "preprocess",
+          "candidate_count",
+          "duration_ms"
+        ]
+      },
+      "FamilyResult": {
+        "type": "object",
+        "properties": {
+          "compared_paths": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/FamilyResult"
+            }
+          },
+          "selected_path": {
+            "type": "string"
+          },
+          "parent_code": {
+            "type": "string"
+          },
+          "sub_code_points": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^-?[0-9]+(\\.[0-9]{1,6})?$",
+              "description": "Exact decimal points, millionth precision"
+            }
+          },
+          "held_combined": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^-?[0-9]+(\\.[0-9]{1,6})?$",
+              "description": "Exact decimal points, millionth precision"
+            }
+          },
+          "parent_total": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^-?[0-9]+(\\.[0-9]{1,6})?$",
+            "description": "Exact decimal points, millionth precision"
+          },
+          "missing_information": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "parent_code",
+          "sub_code_points",
+          "held_combined",
+          "parent_total",
+          "missing_information"
+        ]
+      },
+      "HPOExtractRequest": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "options": {
+            "$ref": "#/components/schemas/EvaluationOptions"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "text",
+          "options"
+        ]
+      },
+      "Impact": {
+        "type": "object",
+        "properties": {
+          "workflow": {
+            "type": "string"
+          },
+          "prediction_outcome": {
+            "type": "string"
+          },
+          "initial_points": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^-?[0-9]+(\\.[0-9]{1,6})?$",
+            "description": "Exact decimal points, millionth precision"
+          },
+          "gencc_mechanism": {
+            "type": "string"
+          },
+          "exon_relevance": {
+            "type": "string"
+          },
+          "fxn_points": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^-?[0-9]+(\\.[0-9]{1,6})?$",
+            "description": "Exact decimal points, millionth precision"
+          },
+          "spa_points": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^-?[0-9]+(\\.[0-9]{1,6})?$",
+            "description": "Exact decimal points, millionth precision"
+          },
+          "informative": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/Informative"
+            }
+          },
+          "amino_acid": {
+            "$ref": "#/components/schemas/Impact"
+          },
+          "splice": {
+            "$ref": "#/components/schemas/Impact"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "workflow"
+        ]
+      },
+      "Informative": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "classification": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id"
+        ]
+      },
+      "Job": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "engine_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "result_kind": {
+            "type": "string"
+          },
+          "request_hash": {
+            "type": "string"
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "progress": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "result_json": {
+            "type": "string"
+          },
+          "error_json": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "job_id",
+          "tenant_id",
+          "engine_id",
+          "status",
+          "result_kind",
+          "request_hash",
+          "stage",
+          "progress",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "JobAccepted": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "result_kind": {
+            "type": "string"
+          },
+          "is_replayed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "job_id",
+          "status",
+          "result_kind",
+          "is_replayed"
+        ]
+      },
+      "OtherVariant": {
+        "type": "object",
+        "properties": {
+          "classification": {
+            "type": "string"
+          },
+          "phase_in_ref_to_vbc": {
+            "type": "string"
+          },
+          "phase_confidence": {
+            "type": "string"
+          },
+          "co_occurrence_likelihood": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Population": {
+        "type": "object",
+        "properties": {
+          "faf": {
+            "type": "string"
+          },
+          "daft": {
+            "type": "string"
+          },
+          "hmz_eligible": {
+            "type": "string"
+          },
+          "homozygote_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "hemizygote_count": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PreprocessResult": {
+        "type": "object",
+        "properties": {
+          "symptoms": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "medical_history": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "diagnosis": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "negated_symptoms": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "family_history": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "inferred_symptoms": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "raw_extraction": {
+            "type": "string"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "symptoms",
+          "medical_history",
+          "diagnosis",
+          "negated_symptoms",
+          "family_history"
+        ]
+      },
+      "ProfilePublic": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "model": {
+            "type": "string"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "base_url": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "model",
+          "protocol",
+          "base_url"
+        ],
+        "additionalProperties": false
+      },
+      "ProvenanceMetadata": {
+        "type": "object",
+        "properties": {
+          "retrieval_mode": {
+            "type": "string"
+          },
+          "retrieval_timestamp": {
+            "type": "string"
+          },
+          "dataset_versions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "tokens_used": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "requests_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "retrieval_mode",
+          "retrieval_timestamp",
+          "tokens_used",
+          "requests_count",
+          "duration_ms"
+        ]
+      },
+      "ProviderTestRequest": {
+        "type": "object",
+        "properties": {
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "openai_responses",
+              "openai_chat"
+            ]
+          },
+          "base_url": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "api_key": {
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "base_url",
+          "api_key",
+          "model",
+          "protocol"
+        ]
+      },
+      "Relative": {
+        "type": "object",
+        "properties": {
+          "parent_of_proband": {
+            "type": "string"
+          },
+          "affected_w_mde": {
+            "type": "string"
+          },
+          "vbc_exists": {
+            "type": "string"
+          },
+          "vbc_zygosity": {
+            "type": "string"
+          },
+          "cmp_het_variant_exists": {
+            "type": "string"
+          },
+          "severe_phenotype": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ResourceUsage": {
+        "type": "object",
+        "properties": {
+          "input_tokens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "output_tokens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "web_searches": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "input_tokens",
+          "output_tokens",
+          "web_searches",
+          "duration_ms"
+        ]
+      },
+      "ReviewDecision": {
+        "type": "object",
+        "properties": {
+          "reviewer_id": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "human_override": {
+            "type": "boolean"
+          },
+          "classification": {
+            "type": "string"
+          },
+          "reviewed_at": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "reviewer_id",
+          "decision",
+          "reason",
+          "human_override",
+          "classification",
+          "reviewed_at"
+        ]
+      },
+      "RuleEngineResult": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/EvaluationOutput"
+          },
+          {
+            "$ref": "#/components/schemas/CNVRuleResult"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null in evidence_only/simulation/experimental. Only fully verified applicable evidence contributes. CNV score is fixed-point hundredths."
+      },
+      "SNVContext": {
+        "type": "object",
+        "properties": {
+          "disease_id": {
+            "type": "string"
+          },
+          "inheritance": {
+            "type": "string"
+          },
+          "variant_origin": {
+            "type": "string",
+            "enum": [
+              "germline_confirmed",
+              "unknown"
+            ]
+          },
+          "sample_type": {
+            "type": "string",
+            "enum": [
+              "blood",
+              "saliva",
+              "buccal",
+              "fibroblast",
+              "tissue",
+              "other",
+              "unknown"
+            ]
+          },
+          "hpo_terms": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "disease_id",
+          "inheritance",
+          "variant_origin",
+          "sample_type",
+          "hpo_terms"
+        ]
+      },
+      "SNVEvaluationRequest": {
+        "type": "object",
+        "properties": {
+          "draft_assessment": {
+            "$ref": "#/components/schemas/DraftAssessment"
+          },
+          "evidence": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/EvidenceItem"
+            }
+          },
+          "sources": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/Source"
+            }
+          },
+          "engine_id": {
+            "type": "string"
+          },
+          "variant": {
+            "$ref": "#/components/schemas/SNVVariant"
+          },
+          "clinical_context": {
+            "$ref": "#/components/schemas/SNVContext"
+          },
+          "options": {
+            "$ref": "#/components/schemas/EvaluationOptions"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "engine_id",
+          "variant",
+          "clinical_context",
+          "options"
+        ]
+      },
+      "SNVVariant": {
+        "type": "object",
+        "properties": {
+          "assembly": {
+            "type": "string"
+          },
+          "chrom": {
+            "type": "string"
+          },
+          "pos": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "alt": {
+            "type": "string"
+          },
+          "transcript": {
+            "type": "string"
+          },
+          "hgvs_c": {
+            "type": "string"
+          },
+          "hgvs_p": {
+            "type": "string"
+          },
+          "gene": {
+            "type": "string"
+          },
+          "consequence": {
+            "type": "string"
+          },
+          "allele_frequency": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "assembly",
+          "chrom",
+          "pos",
+          "ref",
+          "alt",
+          "gene"
+        ]
+      },
+      "Source": {
+        "type": "object",
+        "properties": {
+          "verified_by": {
+            "type": "string"
+          },
+          "verified_at": {
+            "type": "string"
+          },
+          "verification_reason": {
+            "type": "string"
+          },
+          "identifier_valid": {
+            "type": "boolean"
+          },
+          "record_exists": {
+            "type": "boolean"
+          },
+          "object_matched": {
+            "type": "boolean"
+          },
+          "material_verified": {
+            "type": "boolean"
+          },
+          "dataset_version": {
+            "type": "string"
+          },
+          "license": {
+            "type": "string"
+          },
+          "case_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "pmid": {
+            "type": "string"
+          },
+          "doi": {
+            "type": "string"
+          },
+          "clinvar_id": {
+            "type": "string"
+          },
+          "retrieved_at": {
+            "type": "string"
+          },
+          "full_text_available": {
+            "type": "boolean"
+          },
+          "validation_status": {
+            "type": "string"
+          },
+          "case_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "snippet": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "identifier_valid",
+          "record_exists",
+          "object_matched",
+          "material_verified",
+          "id",
+          "type",
+          "title",
+          "retrieved_at",
+          "full_text_available",
+          "validation_status",
+          "case_count"
+        ]
+      },
+      "Testing": {
+        "type": "object",
+        "properties": {
+          "diagnostic_yield_for_phenotypes": {
+            "type": "string"
+          },
+          "covers_all_genes_relevant_to_mde": {
+            "type": "string"
+          },
+          "non_genetic_etiology_excluded": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}

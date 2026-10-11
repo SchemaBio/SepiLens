@@ -40,7 +40,7 @@ func TestServer_HPOExtract_Endpoints(t *testing.T) {
 	}
 
 	// 2. Synchronous JSON extraction
-	extractReq := map[string]any{"text": "患者头晕，眩晕，无头痛"}
+	extractReq := map[string]any{"options": map[string]any{"allow_local_fallback": true}, "text": "患者头晕，眩晕，无头痛"}
 	body, _ := json.Marshal(extractReq)
 	req := httptest.NewRequest("POST", "/v1/hpo/extract", bytes.NewReader(body))
 	req.Header.Set("Authorization", authHeader)

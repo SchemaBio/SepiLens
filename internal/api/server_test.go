@@ -1,6 +1,7 @@
 package api_test
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -27,15 +28,28 @@ func setupTestServer(t *testing.T, sim bool) (*api.Server, func()) {
 	cfg := config.Config{
 		AuthMode:    "required",
 		Simulation:  sim,
+		MasterKey:   "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
 		KeyToTenant: map[string]string{"test-api-key": "tenant-test"},
+		Principals: map[string]config.Principal{
+			"test-api-key": {Tenant: "tenant-test", Actor: "submitter", Role: "submitter"},
+			"review-key":   {Tenant: "tenant-test", Actor: "reviewer", Role: "reviewer"},
+			"admin-key":    {Tenant: "tenant-test", Actor: "admin", Role: "admin"},
+			"other-key":    {Tenant: "other-tenant", Actor: "other", Role: "admin"},
+		},
 	}
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	store := jobs.NewSQLiteStore(db)
 	srv := api.NewServer(cfg, store, db, logger)
 	srv.SetEvidenceStore(evidence.NewSQLiteStore(db))
+	ctx, cancel := context.WithCancel(context.Background())
+	if err := srv.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
 
 	return srv, func() {
+		cancel()
+		srv.Close()
 		_ = db.Close()
 	}
 }

@@ -1,0 +1,315 @@
+{
+  "canonical_splice": {
+    "FRAMESHIFT_NO_NMD": {
+      "prd_hi": 6.0,
+      "prd_lo": -1.0,
+      "splice": true
+    },
+    "NMD_PREDICTED": {
+      "prd_hi": 6.0,
+      "prd_lo": 0.0,
+      "splice": true
+    },
+    "SPLICE_NO_FRAMESHIFT": {
+      "prd_hi": 6.0,
+      "prd_lo": -1.0,
+      "splice": true
+    },
+    "UNCERTAIN": {
+      "parent_hi": 8.0,
+      "prd_hi": 0.0,
+      "prd_lo": 0.0,
+      "prd_spa_fxn_hi": 8.0,
+      "splice": true
+    },
+    "UNLIKELY": {
+      "inf_hi": 0.0,
+      "parent_hi": 0.0,
+      "prd_hi": 0.0,
+      "prd_lo": -1.0,
+      "prd_spa_fxn_hi": 0.0,
+      "prd_spa_hi": 0.0,
+      "prd_spa_lo": -3.0,
+      "splice": true
+    }
+  },
+  "exon_deletion": {
+    "START_CODON_ALT_START_FUNCTIONAL": {
+      "held_hi": 0.0,
+      "inf_hi": 0.0,
+      "parent_code": "CDS",
+      "parent_hi": 0.0,
+      "prd_hi": 0.0,
+      "prd_lo": -1.0,
+      "splice": false
+    },
+    "START_CODON_ALT_START_UNPROVEN": {
+      "held_hi": 9.0,
+      "parent_code": "CDS",
+      "prd_hi": 6.0,
+      "prd_lo": 0.0,
+      "splice": false
+    },
+    "START_CODON_NO_ALT_START": {
+      "held_hi": 10.0,
+      "parent_code": "NUL",
+      "prd_hi": 6.0,
+      "prd_lo": 0.0,
+      "splice": false
+    },
+    "SUBGENIC_NMD": {
+      "held_hi": 10.0,
+      "parent_code": "NUL",
+      "prd_hi": 6.0,
+      "prd_lo": 0.0,
+      "splice": false
+    },
+    "SUBGENIC_NO_NMD": {
+      "held_hi": 9.0,
+      "parent_code": "CDS",
+      "prd_hi": 6.0,
+      "prd_lo": 0.0,
+      "splice": false
+    },
+    "WHOLE_GENE": {
+      "held_hi": 10.0,
+      "parent_code": "NUL",
+      "prd_hi": 10.0,
+      "prd_lo": 0.0,
+      "sm18_mechanism_only": true,
+      "splice": false
+    }
+  },
+  "exon_duplication": {
+    "GAIN_NMD": {
+      "fxn_na": true,
+      "inf_hi": 6.0,
+      "parent_code": "NUL",
+      "parent_hi": 6.0,
+      "parent_lo": -1.0,
+      "prd_hi": 4.0,
+      "prd_lo": 0.0,
+      "splice": false
+    },
+    "GAIN_NO_NMD": {
+      "fxn_na": true,
+      "inf_hi": 6.0,
+      "parent_code": "CDS",
+      "parent_hi": 6.0,
+      "parent_lo": -1.0,
+      "prd_hi": 2.0,
+      "prd_lo": 0.0,
+      "splice": false
+    },
+    "GAIN_TERMINAL_EXON": {
+      "fxn_na": true,
+      "inf_hi": 0.0,
+      "parent_code": "CDS",
+      "parent_hi": 0.0,
+      "prd_hi": 0.0,
+      "prd_lo": 0.0,
+      "splice": false
+    },
+    "TANDEM_NMD": {
+      "held_hi": 10.0,
+      "parent_code": "NUL",
+      "prd_hi": 6.0,
+      "prd_lo": 0.0,
+      "splice": false
+    },
+    "TANDEM_NO_NMD": {
+      "held_hi": 9.0,
+      "parent_code": "CDS",
+      "prd_hi": 3.0,
+      "prd_lo": 0.0,
+      "splice": false
+    },
+    "TANDEM_TERMINAL_EXON": {
+      "held_hi": 9.0,
+      "parent_code": "CDS",
+      "prd_hi": 0.0,
+      "prd_lo": 0.0,
+      "splice": false
+    }
+  },
+  "frameshift": {
+    "NMD_NO_RESCUE": {
+      "held_hi": 10.0,
+      "parent_code": "NUL",
+      "prd_hi": 6.0,
+      "prd_lo": 0.0,
+      "splice": false
+    },
+    "NMD_WITH_RESCUE": {
+      "held_hi": 9.0,
+      "parent_code": "CDS",
+      "prd_hi": 6.0,
+      "prd_lo": -1.0,
+      "splice": false
+    },
+    "NON_STOP_DECAY": {
+      "held_hi": 9.0,
+      "parent_code": "NUL",
+      "prd_hi": 4.0,
+      "prd_lo": 0.0,
+      "splice": false
+    },
+    "NO_NMD": {
+      "held_hi": 9.0,
+      "parent_code": "CDS",
+      "prd_hi": 6.0,
+      "prd_lo": 0.0,
+      "splice": false
+    },
+    "PROTEIN_EXTENSION": {
+      "held_hi": 9.0,
+      "parent_code": "CDS",
+      "prd_hi": 4.0,
+      "prd_lo": 0.0,
+      "splice": false
+    }
+  },
+  "intronic_synonymous": {
+    "FRAMESHIFT_NO_NMD": {
+      "prd_hi": 3.0,
+      "prd_lo": -1.0,
+      "prd_spa_hi": 6.0,
+      "prd_spa_lo": -1.0,
+      "splice": true
+    },
+    "NMD_PREDICTED": {
+      "prd_hi": 3.0,
+      "prd_lo": 0.0,
+      "splice": true
+    },
+    "SPLICE_NO_FRAMESHIFT": {
+      "prd_hi": 3.0,
+      "prd_lo": -1.0,
+      "prd_spa_hi": 6.0,
+      "prd_spa_lo": -1.0,
+      "splice": true
+    },
+    "UNCERTAIN": {
+      "parent_hi": 8.0,
+      "prd_hi": 0.0,
+      "prd_lo": 0.0,
+      "splice": true
+    },
+    "UNLIKELY": {
+      "inf_hi": 0.0,
+      "parent_hi": 0.0,
+      "prd_hi": 0.0,
+      "prd_lo": -1.0,
+      "prd_spa_fxn_hi": 0.0,
+      "prd_spa_hi": 0.0,
+      "prd_spa_lo": -3.0,
+      "splice": true
+    }
+  },
+  "missense_splice": {
+    "FRAMESHIFT_NO_NMD": {
+      "prd_hi": 3.0,
+      "prd_lo": -1.0,
+      "prd_spa_hi": 6.0,
+      "prd_spa_lo": 0.0,
+      "splice": true
+    },
+    "NMD_PREDICTED": {
+      "prd_hi": 3.0,
+      "prd_lo": 0.0,
+      "prd_spa_hi": 6.0,
+      "prd_spa_lo": 0.0,
+      "splice": true
+    },
+    "SPLICE_NO_FRAMESHIFT": {
+      "prd_hi": 3.0,
+      "prd_lo": -1.0,
+      "prd_spa_hi": 6.0,
+      "prd_spa_lo": 0.0,
+      "splice": true
+    },
+    "UNCERTAIN": {
+      "parent_hi": 0.0,
+      "prd_hi": 0.0,
+      "prd_lo": 0.0,
+      "prd_spa_hi": 2.0,
+      "prd_spa_lo": -2.0,
+      "splice": true
+    },
+    "UNLIKELY": {
+      "inf_hi": 0.0,
+      "parent_hi": 8.0,
+      "prd_hi": 0.0,
+      "prd_lo": -1.0,
+      "prd_spa_hi": 0.0,
+      "prd_spa_lo": -3.0,
+      "splice": true
+    }
+  },
+  "nonsense": {
+    "NMD_NO_RESCUE": {
+      "held_hi": 10.0,
+      "parent_code": "NUL",
+      "prd_hi": 6.0,
+      "prd_lo": 0.0,
+      "splice": false
+    },
+    "NMD_WITH_RESCUE": {
+      "held_hi": 9.0,
+      "parent_code": "CDS",
+      "prd_hi": 6.0,
+      "prd_lo": -1.0,
+      "splice": false
+    },
+    "NO_NMD": {
+      "held_hi": 9.0,
+      "parent_code": "CDS",
+      "prd_hi": 6.0,
+      "prd_lo": 0.0,
+      "splice": false
+    }
+  },
+  "start_lost": {
+    "ALT_START_FUNCTIONAL": {
+      "held_hi": 0.0,
+      "inf_hi": 0.0,
+      "parent_code": "CDS",
+      "parent_hi": 0.0,
+      "prd_hi": 0.0,
+      "prd_lo": -1.0,
+      "splice": false
+    },
+    "ALT_START_UNPROVEN": {
+      "held_hi": 9.0,
+      "parent_code": "CDS",
+      "parent_lo": -4.0,
+      "prd_hi": 6.0,
+      "prd_lo": 0.0,
+      "splice": false
+    },
+    "NO_ALT_START": {
+      "held_hi": 10.0,
+      "parent_code": "NUL",
+      "parent_lo": -4.0,
+      "prd_hi": 6.0,
+      "prd_lo": 0.0,
+      "splice": false
+    }
+  },
+  "stop_lost": {
+    "NO_NSD": {
+      "held_hi": 9.0,
+      "parent_code": "CDS",
+      "prd_hi": 4.0,
+      "prd_lo": 0.0,
+      "splice": false
+    },
+    "NSD_PREDICTED": {
+      "held_hi": 9.0,
+      "parent_code": "NUL",
+      "prd_hi": 4.0,
+      "prd_lo": 0.0,
+      "splice": false
+    }
+  }
+}

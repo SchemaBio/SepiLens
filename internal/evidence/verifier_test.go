@@ -46,9 +46,11 @@ func TestSourceVerifier_IntegrityAndDowngrade(t *testing.T) {
 		CaseCount: 2,
 	}
 	verifier.VerifySource(&srcValid)
-	if srcValid.ValidationStatus != evidence.ValidationVerified {
-		t.Fatalf("expected valid PMID to be verified, got %s", srcValid.ValidationStatus)
+	if srcValid.ValidationStatus != evidence.ValidationUnverified || !srcValid.IdentifierValid {
+		t.Fatalf("identifier format must not imply verification: %+v", srcValid)
 	}
+	srcValid.RecordExists, srcValid.ObjectMatched, srcValid.MaterialVerified = true, true, true
+	verifier.VerifySource(&srcValid)
 
 	srcInvalid := evidence.Source{
 		ID:        "SRC-02",

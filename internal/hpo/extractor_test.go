@@ -20,30 +20,9 @@ func (m *mockLLM) Capabilities(ctx context.Context) (llm.ModelCapabilities, erro
 func (m *mockLLM) Generate(ctx context.Context, req llm.GenerateRequest) (llm.GenerateResult, error) {
 	m.calls = append(m.calls, req.Prompt)
 	if len(m.calls) == 1 {
-		// Stage 1 Preprocessing output
-		return llm.GenerateResult{
-			Content: `{
-				"symptoms": ["眩晕"],
-				"negated_symptoms": ["头痛"],
-				"medical_history": ["高血压"]
-			}`,
-		}, nil
+		return llm.GenerateResult{Content: `{"symptoms":["眩晕"],"negated_symptoms":["头痛"],"medical_history":["高血压"],"diagnosis":[],"family_history":[],"inferred_symptoms":[]}`}, nil
 	}
-	// Stage 3 Matching output: returns Vertigo and erroneously returns Headache (which was negated!)
-	return llm.GenerateResult{
-		Content: `[
-			{
-				"hpo_id": "HP:0002321",
-				"confidence": "高",
-				"remark": "【眩晕】→ 精确匹配"
-			},
-			{
-				"hpo_id": "HP:0002315",
-				"confidence": "高",
-				"remark": "【头痛】→ 误选了否定症状"
-			}
-		]`,
-	}, nil
+	return llm.GenerateResult{Content: `{"terms":[{"hpo_id":"HP:0002321","confidence":"high","original_symptom":"眩晕","polarity":"present"},{"hpo_id":"HP:0002315","confidence":"high","original_symptom":"头痛","polarity":"present"}]}`}, nil
 }
 
 func (m *mockLLM) Stream(ctx context.Context, req llm.GenerateRequest) (<-chan llm.ModelEvent, error) {
@@ -84,7 +63,7 @@ func TestExtractor_FullPipelineAndNegationFilter(t *testing.T) {
 			foundVertigo = true
 		}
 		// Negation filter: Headache HP:0002315 must have been filtered out!
-		if term.HPO == "HP:0002315" || term.NameCN == "头痛" {
+		if (term.HPO == "HP:0002315" || term.NameCN == "头痛") && term.Polarity != hpo.PolarityAbsent {
 			t.Fatalf("CRITICAL: negated symptom Headache (HP:0002315) was not filtered out!")
 		}
 	}
@@ -103,7 +82,7 @@ func TestExtractor_RuleBasedFallback(t *testing.T) {
 
 	extractor := hpo.NewExtractor(idx, nil) // no LLM provider
 
-	res, err := extractor.Extract(context.Background(), "多囊性肾发育不良", hpo.ExtractOptions{})
+	res, err := extractor.Extract(context.Background(), "多囊性肾发育不良", hpo.ExtractOptions{AllowLocalFallback: true})
 	if err != nil {
 		t.Fatalf("fallback extraction failed: %v", err)
 	}

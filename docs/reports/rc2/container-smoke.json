@@ -1,0 +1,58 @@
+{
+  "status": "passed",
+  "image": "sepilens:0.2.0-rc2",
+  "platforms": [
+    {
+      "platform": "linux/amd64",
+      "status": "passed",
+      "version": "0.2.0-rc2",
+      "binary_sha256": "c6d68f400bc2467cd775c6a6df2e28b062725895f419ee00b5fde8f896f9a342",
+      "image_id": "sha256:8b0ba3f02106488aab4008b8aa55d82d9d7623e382e10df9ead5dad6ceee0795",
+      "non_root": true,
+      "graceful_exit_code": 0,
+      "stop_seconds": 0.641,
+      "checks": [
+        "OCI load",
+        "binary identity",
+        "ready",
+        "disabled gate",
+        "queued result",
+        "SSE",
+        "audit",
+        "SVC exact boundary and no clinical promotion",
+        "HPO explicit fallback",
+        "tenant delete",
+        "SIGTERM shutdown"
+      ],
+      "architecture_execution": "native"
+    },
+    {
+      "platform": "linux/arm64",
+      "status": "passed",
+      "version": "0.2.0-rc2",
+      "binary_sha256": "26073c22f10598fff2e90ae864fa3980d80c21d67f3c467397872cf51a19e433",
+      "image_id": "sha256:8b0ba3f02106488aab4008b8aa55d82d9d7623e382e10df9ead5dad6ceee0795",
+      "non_root": true,
+      "graceful_exit_code": 0,
+      "stop_seconds": 0.672,
+      "checks": [
+        "OCI load",
+        "binary identity",
+        "ready",
+        "disabled gate",
+        "queued result",
+        "SSE",
+        "audit",
+        "SVC exact boundary and no clinical promotion",
+        "HPO explicit fallback",
+        "tenant delete",
+        "SIGTERM shutdown"
+      ],
+      "architecture_execution": "Docker Desktop emulation"
+    }
+  ],
+  "limitations": [
+    "Synthetic, no real model calls or clinical approval",
+    "arm64 is emulated, not actual arm64 deployment hardware"
+  ]
+}

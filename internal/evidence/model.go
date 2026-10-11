@@ -28,18 +28,28 @@ const (
 )
 
 type Source struct {
-	ID                string           `json:"id"`
-	Type              SourceType       `json:"type"`
-	Title             string           `json:"title"`
-	URL               string           `json:"url,omitempty"`
-	PMID              string           `json:"pmid,omitempty"`
-	DOI               string           `json:"doi,omitempty"`
-	ClinVarID         string           `json:"clinvar_id,omitempty"`
-	RetrievedAt       string           `json:"retrieved_at"`
-	FullTextAvailable bool             `json:"full_text_available"`
-	ValidationStatus  SourceValidation `json:"validation_status"`
-	CaseCount         int              `json:"case_count"`
-	Snippet           string           `json:"snippet,omitempty"`
+	VerifiedBy         string           `json:"verified_by,omitempty"`
+	VerifiedAt         string           `json:"verified_at,omitempty"`
+	VerificationReason string           `json:"verification_reason,omitempty"`
+	IdentifierValid    bool             `json:"identifier_valid"`
+	RecordExists       bool             `json:"record_exists"`
+	ObjectMatched      bool             `json:"object_matched"`
+	MaterialVerified   bool             `json:"material_verified"`
+	DatasetVersion     string           `json:"dataset_version,omitempty"`
+	License            string           `json:"license,omitempty"`
+	CaseIDs            []string         `json:"case_ids,omitempty"`
+	ID                 string           `json:"id"`
+	Type               SourceType       `json:"type"`
+	Title              string           `json:"title"`
+	URL                string           `json:"url,omitempty"`
+	PMID               string           `json:"pmid,omitempty"`
+	DOI                string           `json:"doi,omitempty"`
+	ClinVarID          string           `json:"clinvar_id,omitempty"`
+	RetrievedAt        string           `json:"retrieved_at"`
+	FullTextAvailable  bool             `json:"full_text_available"`
+	ValidationStatus   SourceValidation `json:"validation_status"`
+	CaseCount          int              `json:"case_count"`
+	Snippet            string           `json:"snippet,omitempty"`
 }
 
 type EvidenceStatus string
@@ -55,19 +65,21 @@ const (
 )
 
 type EvidenceItem struct {
-	ID                 string         `json:"id"`
-	EngineID           string         `json:"engine_id"`
-	GuidelineVersion   string         `json:"guideline_version"`
-	RuleCode           string         `json:"rule_code"`
-	Status             EvidenceStatus `json:"status"`
-	SuggestedScore     string         `json:"suggested_score,omitempty"`
-	ScoreApplied       *string        `json:"score_applied,omitempty"`
-	Reason             string         `json:"reason"`
-	SourceIDs          []string       `json:"source_ids,omitempty"`
-	SourceValidation   string         `json:"source_validation"` // "verified", "unverified"
-	ReviewRequired     bool           `json:"review_required"`
-	RuleConflicts      []string       `json:"rule_conflicts,omitempty"`
-	MissingInformation []string       `json:"missing_information,omitempty"`
+	Facts              map[string]bool `json:"facts,omitempty"`
+	CaseIDs            []string        `json:"case_ids,omitempty"`
+	ID                 string          `json:"id"`
+	EngineID           string          `json:"engine_id"`
+	GuidelineVersion   string          `json:"guideline_version"`
+	RuleCode           string          `json:"rule_code"`
+	Status             EvidenceStatus  `json:"status"`
+	SuggestedScore     string          `json:"suggested_score,omitempty"`
+	ScoreApplied       *string         `json:"score_applied,omitempty"`
+	Reason             string          `json:"reason"`
+	SourceIDs          []string        `json:"source_ids,omitempty"`
+	SourceValidation   string          `json:"source_validation"` // "verified", "unverified"
+	ReviewRequired     bool            `json:"review_required"`
+	RuleConflicts      []string        `json:"rule_conflicts,omitempty"`
+	MissingInformation []string        `json:"missing_information,omitempty"`
 }
 
 type ProvenanceMetadata struct {
@@ -80,14 +92,15 @@ type ProvenanceMetadata struct {
 }
 
 type EvidenceSnapshot struct {
-	SnapshotID   string             `json:"snapshot_id"`
-	EvaluationID string             `json:"evaluation_id"`
-	TenantID     string             `json:"tenant_id"`
-	Hash         string             `json:"hash"`
-	Sources      []Source           `json:"sources"`
-	Items        []EvidenceItem     `json:"items"`
-	Provenance   ProvenanceMetadata `json:"provenance"`
-	CreatedAt    time.Time          `json:"created_at"`
+	LegacyUnverified bool               `json:"legacy_unverified"`
+	SnapshotID       string             `json:"snapshot_id"`
+	EvaluationID     string             `json:"evaluation_id"`
+	TenantID         string             `json:"tenant_id"`
+	Hash             string             `json:"hash"`
+	Sources          []Source           `json:"sources"`
+	Items            []EvidenceItem     `json:"items"`
+	Provenance       ProvenanceMetadata `json:"provenance"`
+	CreatedAt        time.Time          `json:"created_at"`
 }
 
 type canonicalPayload struct {

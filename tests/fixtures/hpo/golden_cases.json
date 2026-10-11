@@ -3,28 +3,45 @@
     "id": "CASE-NEURO-01",
     "description": "神经系统认知障碍与脑血管病",
     "clinical_text": "发作性认知障碍1天余；患者于1天余前出现认知障碍，表现为记忆力下降、认字困难，伴头晕。既往病史：脑梗死、肝硬化。拟'脑梗死'收入我科。",
-    "expected_present_ids": ["HP:0002321", "HP:0000726"],
+    "expected_present_ids": [
+      "HP:0100543",
+      "HP:0002354"
+    ],
     "forbidden_negated_ids": []
   },
   {
     "id": "CASE-CARDIO-02",
     "description": "心血管急性非ST段抬高心肌梗死（含否定词）",
     "clinical_text": "患者突发胸痛2小时，伴胸闷、气促，心电图提示急性非ST段抬高型心肌梗死。既往高血压病史5年。",
-    "expected_present_ids": ["HP:0001658", "HP:0000822"],
-    "forbidden_negated_ids": ["HP:0012251"]
+    "expected_present_ids": [
+      "HP:0001658",
+      "HP:0000822"
+    ],
+    "forbidden_negated_ids": [
+      "HP:0012251"
+    ]
   },
   {
     "id": "CASE-NEGATION-03",
     "description": "明确否定症状与家族史区隔",
     "clinical_text": "患者诉反复眩晕发作，无头痛，否认发热及意识障碍。家族史：父亲患原发性高血压。既往史：2型糖尿病。",
-    "expected_present_ids": ["HP:0002321", "HP:0000855"],
-    "forbidden_negated_ids": ["HP:0002315", "HP:0001945", "HP:0001289"]
+    "expected_present_ids": [
+      "HP:0002321",
+      "HP:0005978"
+    ],
+    "forbidden_negated_ids": [
+      "HP:0002315",
+      "HP:0001945",
+      "HP:0001289"
+    ]
   },
   {
     "id": "CASE-RENAL-04",
     "description": "肾脏发育异常精确术语匹配",
     "clinical_text": "产前超声检查示胎儿双侧多囊性肾发育不良，羊水偏少。",
-    "expected_present_ids": ["HP:0000003"],
+    "expected_present_ids": [
+      "HP:0000003"
+    ],
     "forbidden_negated_ids": []
   }
 ]

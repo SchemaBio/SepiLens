@@ -1,11 +1,12 @@
 # Binaries
 bin/
+dist/
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
-sepilens
+/sepilens
 
 # SQLite
 *.db
@@ -23,6 +24,8 @@ sepilens
 coverage.out
 test.log
 tmp/
+__pycache__/
+*.pyc
 
 # Environment files
 .env

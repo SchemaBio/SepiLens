@@ -41,9 +41,11 @@ type GenerateResult struct {
 }
 
 type ModelEvent struct {
-	Type    string `json:"type"` // "token", "citation", "done", "error"
-	Content string `json:"content,omitempty"`
-	Error   error  `json:"error,omitempty"`
+	InputTokens  int    `json:"input_tokens,omitempty"`
+	OutputTokens int    `json:"output_tokens,omitempty"`
+	Type         string `json:"type"` // "token", "citation", "done", "error"
+	Content      string `json:"content,omitempty"`
+	Error        error  `json:"error,omitempty"`
 }
 
 type Provider interface {

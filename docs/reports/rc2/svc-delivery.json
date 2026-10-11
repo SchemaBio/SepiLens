@@ -1,0 +1,47 @@
+{
+  "version": "0.2.0-rc2",
+  "status": "engineering_experimental_delivery",
+  "clinical_status": "disabled_pending_independent_validation_and_expert_approval",
+  "upstream_commit": "ef66faff51a265fef7b5c4e6439905f3aa540c46",
+  "ruleset_hash": "486d50c4f1850d7f1fa70ef7cde3033c7039c26856d67bcb390601e1699fb468",
+  "parity": {
+    "kind": "upstream_reference_parity_not_clinical_goldens",
+    "vectors": 5245,
+    "exact_matches": 5240,
+    "documented_exact_decimal_corrections": 5,
+    "fixture_sha256": "9c411af108497d1169183c2319413b66e939cb67dd64a928588d26e78d482e2e"
+  },
+  "checks": [
+    {
+      "command": "go test ./... -count=1",
+      "status": "passed",
+      "network": "local mocks only; no vendor verification"
+    },
+    {
+      "command": "go vet ./...",
+      "status": "passed"
+    },
+    {
+      "command": "go test -race ./... -count=1",
+      "platform": "Ubuntu WSL Linux",
+      "status": "passed"
+    },
+    {
+      "command": "go test ./internal/rules/svcv4 -count=1",
+      "status": "passed",
+      "includes": "exact bounds, ND/zero, held caps, clinical population gate, correlated CCS exclusions, missense alternatives, implementation hash"
+    }
+  ],
+  "deployment_reports": [
+    "windows-install-smoke.json",
+    "linux-install-smoke.json",
+    "container-smoke.json"
+  ],
+  "limitations": [
+    "Non-authoritative analyst-coded reference inputs; no complete CSpec raw method workflows",
+    "Upstream known gaps, motif and noncoding pending; in-frame path lacks upstream scorer parity",
+    "No independent medical goldens or expert approval",
+    "No real model vendor verification or full official licensed dataset",
+    "arm64 execution uses Docker Desktop emulation"
+  ]
+}

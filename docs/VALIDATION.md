@@ -1,37 +1,43 @@
-# SepiLens 医学规则验证与性能基准报告
+# 0.2.0-rc1 验证记录
 
-**文档版本**：v1.0 (2026-10-10)  
-**发布候选版本**：v0.1.0-alpha  
-**验证状态**：4 套生产引擎全部通过 100% 自动化黄金回归用例验证；SVC v4 依门禁规范保持禁用。
+验证日期：2026-10-11。基线复核为 105948c，本轮修改尚未提交。该文件撤回 alpha 的“100% 医学准确率/官方对齐/生产启用”声明。
 
----
+## 工程验证
 
-## 1. 引擎验证矩阵摘要
+已实际执行 Windows 全量 `go test ./...`、`go vet ./...`，以及 Linux Go 容器的全量 `go test -race ./...`。两个协议通过本地 HTTP 模拟服务器检查请求格式、Schema、流式、用量、失败和错误脱敏；这些属于协议工程测试，不是厂商真实联调。
 
-| 引擎标识 | 指南 / 规范标准 | 验证测试集 | 用例覆盖 | 验证结果 | 状态 |
-|---|---|---|---|---|---|
-| `hpo_extract` | 本地 HPO 中英本体 + 三阶段抽取 | `tests/fixtures/hpo/golden_cases.json` | 神经系统、心血管、多囊肾、否定与家族史 | 100% 通过（检索 < 0.1ms） | **LIVE** |
-| `acmg_amp_2015` | Richards 2015 + ClinGen VCEP | `tests/fixtures/acmg2015/golden_cases.json` | 14 条标准组合路径、VCEP 规范、冲突 VUS | 100% 通过（确定性 1:1 复现） | **LIVE** |
-| `cnv_loss_2020` | ACMG/ClinGen 2020 Loss Rubric | `tests/fixtures/cnv_loss/golden_cases.json` | Smith-Magenis 缺失、基因沙漠、良性区域重叠 | 100% 对齐 ClinGen 官方计算器 | **LIVE** |
-| `cnv_gain_2020` | ACMG/ClinGen 2020 Gain Rubric | `tests/fixtures/cnv_gain/golden_cases.json` | 22q11.2 重复、大片段基因富集、良性增益重叠 | 100% 对齐 ClinGen 官方计算器 | **LIVE** |
-| `svc_v4` | ClinGen SVC v4 提案标准 | `tests/negative_security/security_test.go` | 门禁拦截测试 | 100% 拦截并返回 409 | **DISABLED** |
+测试包括：跨租户访问、审核角色与版本、并发幂等、请求断开后继续执行、取消竞态、未完成外部调用恢复、存储提交失败、快照篡改、加密认证与事务轮换、旧重复键迁移、旧来源降权、DNS 混合私网拒绝及重定向拒绝、检索实际请求预算、ClinVar 等位匹配/区域查询、许可白名单和引用追踪。
 
----
+`TestMockCloudSubmitProgressReviewSettleDelete` 在隔离测试内使用合成批准条件，走通提交→进度→结果→证据→专业审核→结算→审计→删除。测试条件不导出为医学批准文件，正式交付仍默认禁用。
 
-## 2. 关键业务验证细节
+`scripts/smoke.py` 用实际 Windows 交付二进制、本地 HTTP、全新数据库执行 30 项检查，包含启动、认证、门禁、HPO 显式降级及跨度、异步执行、SSE 续传、幂等冲突、密钥不可读回、备份恢复、重启、事务轮换和租户删除。运行报告保存在 `docs/reports/`；报告仅包含合成测试和硬件/性能信息，不含运行密钥。
 
-### 2.1 HPO 本地倒排索引与抽取
-- **本体库容量**：20,384 条术语，40,347 行中英文名称表；
-- **检索性能**：单次检索平均耗时约 65 微秒（0.065 ms），内存常驻约 80MB；
-- **否定语义拦截**：对病历中明确记录为“无头痛”、“否认发热”、“非ST段抬高”的特征，100% 阻断其误判为阳性表型；
-- **模型幻觉 ID 过滤**：对模型返回的未在 HPO 本体主库中收录的虚构 ID（如 `HP:9999999`）实现 100% 自动丢弃。
+Windows 和 Linux amd64 实际解包后均通过上述 30 项检查。Linux 安装检查在 Ubuntu WSL2 上执行；两个实际 OCI 镜像均通过二进制散列一致性、非 root、任务/证据/审核门禁、删除和 SIGTERM 退出检查。arm64 由 Docker Desktop 仿真执行，不能替代原生 arm64 硬件验收。最终记录：[Windows 安装](reports/windows-install-smoke.json)、[Linux 安装](reports/linux-install-smoke.json)、[双架构容器](reports/container-smoke.json)。
 
-### 2.2 ACMG/AMP 2015 确定性规则组合
-- **14 条组合路径覆盖**：覆盖 Pathogenic 5 种触发路径、Likely pathogenic 6 种触发路径、Benign 2 种路径与 Likely benign 2 种路径；
-- **冲突仲裁准确率**：当致病规则与良性规则同时触发时（例如高频良性位点合并移码突变），100% 严格裁决为 VUS 并记录冲突明细；
-- **ClinGen VCEP 适配**：CFTR 囊性纤维化规范自动降级 PM2 为 Supporting 强度，精确采用 5% (BA1) 与 1% (BS1) 频率阈值。
+`scripts/verify_release.py` 校验所有交付 SHA-256、安装包内二进制、可执行权限、源码归档、OpenAPI 引用、OCI 架构，以及报告与最终二进制身份。版本化迁移嵌入二进制，并随源码完整交付。依赖清单记录 27 个模块，收集到 34 份许可证/声明文本；文本已收集不代表完成法律审核。
 
-### 2.3 CNV Loss 与 Gain 官方计算器对齐
-- **定点整数精度**：全程使用百分位整数（100 代表 1.00 分），杜绝浮点数四舍五入造成的临界区间漂移；
-- **Loss 与 Gain 隔离**：编码基因数阈值独立生效（Loss: 25/35；Gain: 35/50）；
-- **体细胞肿瘤 CNV 阻断**：对确认体细胞来源变异严格阻断 ACMG 胚系解读流程（422）。
+支持构建：Windows amd64、Linux amd64、Linux arm64（CGO_ENABLED=0）。Dockerfile 为 Linux amd64/arm64 非 root 镜像；实际镜像与平台启动记录、校验和见交付 manifest 与报告。若报告中未标通过，不应仅凭构建声明认为已部署验收。
+
+## 规则工程检查与医学门禁
+
+ACMG 单元测试覆盖规范组合、重复代码、相关来源和各条款的材料核验；没有 AF、疾病机制或剪接材料时不会推定满足。Loss/Gain 独立保存 rubric，并对每个声明支持条款核对手工转录的官方整数范围、边界、缺失前提、未核验材料和累积上限；另验证分类分界、互斥、病例去重、跨类别上限、gene count 阈值、assembly 与结构不确定性。
+
+`official_bounds_test.go` 的数值来自 [ClinGen Loss](https://cnvcalc.clinicalgenome.org/cnvcalc/cnv-loss) 和 [ClinGen Gain](https://cnvcalc.clinicalgenome.org/cnvcalc/cnv-gain)，是工程范围契约，不是专家复核患者黄金案例。合成数据测试覆盖导入、替代关系、参考碱基和锁定散列；不冒充完整官方数据。
+
+`rules/packages/*/manifest.json` 的每条规则六类临床案例矩阵均为 pending_independent_validation。CLI validate 比较外部独立期望，错误返回非零；从当前代码生成期望不能作为批准材料。批准必须签名绑定规则、报告、当前 dataset hash 和当前可执行文件 hash。SVC v4 临床引擎保持禁用；RC2 提供显式 opt-in 的草案实验评分。
+
+## 性能报告解释
+
+性能 workload 为“合成 evidence_only、检索 off、无模型”，单机 SQLite、2 worker、客户端并发 4。报告给出硬件 CPU、逻辑核数、进程峰值驻留内存、请求数、吞吐、p50/p95 和失败数。它不预测真实临床模型延迟、检索速度或医学准确率；真实网络 workload 尚未测量。默认 polling 对轻任务吞吐有影响，报告不作额外性能承诺。
+
+## 尚未通过的验收
+
+- 两个协议真实厂商联调：没有提供专用厂商测试密钥，未执行、未标通过。
+- 完整官方 GRCh37/38、RefSeq、ClinGen、HPO 数据包覆盖与再分发许可：导入工具可用，真实完整锁定清单和授权证据待确认。
+- 独立黄金案例、全部条款六类专业核对、复杂基因内事件、专家签名批准：未取得，因此医学门禁关闭。
+- 部署现场断电与长期运行、实际外部模型保留合同：未验收。
+- 原有中文 HPO 翻译资源授权证据、传递依赖完整许可证审核：待确认，不能对外生产发布。
+
+这些验收项不由 mock 或现有 fixture 替代。工程候选可以用于隔离部署验收，尚不能声明整个首版计划的所有退出条件已通过。
+
+SVC v4 草案实验移植验证另见 SVC_V4_EXPERIMENTAL.md；不改变 RC1 临床批准状态。

@@ -9,9 +9,9 @@ import (
 )
 
 type SynonymMatcher struct {
-	namesLines         []string
-	namesTrigramIndex  map[string][]int
-	nameToHpoID        map[string]string
+	namesLines        []string
+	namesTrigramIndex map[string][]int
+	nameToHpoID       map[string]string
 }
 
 func NewSynonymMatcher(namesPath string, hpoTerms map[string]Term) (*SynonymMatcher, error) {

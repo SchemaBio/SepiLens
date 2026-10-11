@@ -95,8 +95,8 @@ func TestCoordinator_TargetedAndDeduplication(t *testing.T) {
 		t.Fatalf("coordinate failed: %v", err)
 	}
 
-	if prov.RequestsCount != 1 {
-		t.Fatalf("expected 1 request, got %d", prov.RequestsCount)
+	if prov.RequestsCount != 0 {
+		t.Fatalf("in-memory mock must not report HTTP calls, got %d", prov.RequestsCount)
 	}
 	if len(sources) != 1 {
 		t.Fatalf("expected 1 deduplicated source, got %d", len(sources))

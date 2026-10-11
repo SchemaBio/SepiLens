@@ -81,6 +81,7 @@ type AppliedCriterion struct {
 	Status            CriterionStatus `json:"status"`
 	Rationale         string          `json:"rationale"`
 	SourceIDs         []string        `json:"source_ids,omitempty"`
+	Facts             map[string]bool `json:"facts,omitempty"`
 }
 
 var (

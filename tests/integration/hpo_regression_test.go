@@ -41,7 +41,7 @@ func TestHPO_GoldenCasesRegression(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.ID, func(t *testing.T) {
 			res, err := extractor.Extract(context.Background(), tc.ClinicalText, hpo.ExtractOptions{
-				MaxCandidates: 50,
+				MaxCandidates: 50, AllowLocalFallback: true,
 			})
 			if err != nil {
 				t.Fatalf("extraction failed on %s: %v", tc.ID, err)
@@ -50,7 +50,7 @@ func TestHPO_GoldenCasesRegression(t *testing.T) {
 			// Verify forbidden negated IDs are strictly absent
 			for _, term := range res.Terms {
 				for _, forbidden := range tc.ForbiddenNegatedIDs {
-					if term.HPO == forbidden {
+					if term.HPO == forbidden && term.Polarity == "present" {
 						t.Fatalf("REGRESSION FAILURE [%s]: forbidden negated ID %s was returned in present terms!", tc.ID, forbidden)
 					}
 				}
@@ -70,8 +70,8 @@ func TestHPO_GoldenCasesRegression(t *testing.T) {
 						break
 					}
 				}
-				if !foundInTerms && !candidateIDs[expID] {
-					t.Logf("Notice [%s]: expected ID %s was not recalled in top candidate pool", tc.ID, expID)
+				if !foundInTerms {
+					t.Fatalf("Missing expected term [%s]: expected ID %s was not recalled in top candidate pool", tc.ID, expID)
 				}
 			}
 		})

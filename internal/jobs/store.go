@@ -49,6 +49,8 @@ type JobEvent struct {
 }
 
 type ReviewRecord struct {
+	ExpectedUpdatedAt      time.Time `json:"-"`
+	ResultVersion          int       `json:"result_version"`
 	ID                     int64     `json:"id"`
 	EvaluationID           string    `json:"evaluation_id"`
 	TenantID               string    `json:"tenant_id"`
@@ -166,7 +168,7 @@ func (s *SQLiteStore) UpdateJobStatus(ctx context.Context, jobID string, status 
 		result_json = COALESCE(?, result_json),
 		error_json = COALESCE(?, error_json),
 		updated_at = ?
-		WHERE job_id = ?`
+		WHERE job_id = ? AND status IN ('queued','running')`
 
 	res, err := s.db.ExecContext(ctx, query, string(status), stage, progress, resultJSON, errorJSON, now, jobID)
 	if err != nil {
@@ -183,20 +185,28 @@ func (s *SQLiteStore) UpdateJobStatus(ctx context.Context, jobID string, status 
 }
 
 func (s *SQLiteStore) AppendEvent(ctx context.Context, jobID string, stage string, payloadJSON string) (JobEvent, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return JobEvent{}, err
+	}
+	defer tx.Rollback()
 	now := time.Now().UTC()
 	var nextSeq int
 	seqQuery := `SELECT COALESCE(MAX(seq), 0) + 1 FROM job_events WHERE job_id = ?`
-	if err := s.db.QueryRowContext(ctx, seqQuery, jobID).Scan(&nextSeq); err != nil {
+	if err := tx.QueryRowContext(ctx, seqQuery, jobID).Scan(&nextSeq); err != nil {
 		return JobEvent{}, fmt.Errorf("compute next event seq: %w", err)
 	}
 
 	insQuery := `INSERT INTO job_events (job_id, seq, stage, payload_json, created_at)
 		VALUES (?, ?, ?, ?, ?)`
-	res, err := s.db.ExecContext(ctx, insQuery, jobID, nextSeq, stage, payloadJSON, now.Format(time.RFC3339Nano))
+	res, err := tx.ExecContext(ctx, insQuery, jobID, nextSeq, stage, payloadJSON, now.Format(time.RFC3339Nano))
 	if err != nil {
 		return JobEvent{}, fmt.Errorf("insert event: %w", err)
 	}
 	id, _ := res.LastInsertId()
+	if err = tx.Commit(); err != nil {
+		return JobEvent{}, err
+	}
 
 	return JobEvent{
 		ID:          id,
@@ -240,8 +250,14 @@ func (s *SQLiteStore) CancelJob(ctx context.Context, tenantID, jobID string) err
 		return ErrJobAlreadyFinished
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
-	query := `UPDATE jobs SET status = ?, stage = 'cancelled', updated_at = ? WHERE tenant_id = ? AND job_id = ?`
-	_, err = s.db.ExecContext(ctx, query, string(StatusCancelled), now, tenantID, jobID)
+	query := `UPDATE jobs SET status = ?, stage = 'cancelled', updated_at = ? WHERE tenant_id = ? AND job_id = ? AND status IN ('queued','running')`
+	res, err := s.db.ExecContext(ctx, query, string(StatusCancelled), now, tenantID, jobID)
+	if err == nil {
+		rows, _ := res.RowsAffected()
+		if rows == 0 {
+			return ErrJobAlreadyFinished
+		}
+	}
 	return err
 }
 
@@ -250,6 +266,9 @@ func (s *SQLiteStore) AddReview(ctx context.Context, r ReviewRecord) error {
 	if r.CreatedAt.IsZero() {
 		r.CreatedAt = now
 	}
+	if r.ResultVersion == 0 {
+		r.ResultVersion = 1
+	}
 	overrideInt := 0
 	if r.HumanOverride {
 		overrideInt = 1
@@ -257,22 +276,31 @@ func (s *SQLiteStore) AddReview(ctx context.Context, r ReviewRecord) error {
 
 	query := `INSERT INTO reviews (
 		evaluation_id, tenant_id, reviewer_id, decision, reason,
-		human_override, reviewed_classification, created_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+		human_override, reviewed_classification, created_at,result_version
+	) SELECT ?, ?, ?, ?, ?, ?, ?, ?,? WHERE ?='' OR EXISTS (
+	 SELECT 1 FROM jobs WHERE tenant_id=? AND job_id=? AND status='succeeded' AND updated_at=?)`
 
-	_, err := s.db.ExecContext(ctx, query,
+	expected := ""
+	if !r.ExpectedUpdatedAt.IsZero() {
+		expected = r.ExpectedUpdatedAt.Format(time.RFC3339Nano)
+	}
+	res, err := s.db.ExecContext(ctx, query,
 		r.EvaluationID, r.TenantID, r.ReviewerID, r.Decision, r.Reason,
-		overrideInt, nullString(r.ReviewedClassification), r.CreatedAt.Format(time.RFC3339Nano),
+		overrideInt, nullString(r.ReviewedClassification), r.CreatedAt.Format(time.RFC3339Nano), r.ResultVersion,
+		expected, r.TenantID, r.EvaluationID, expected,
 	)
 	if err != nil {
 		return fmt.Errorf("insert review: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrJobAlreadyFinished
 	}
 	return nil
 }
 
 func (s *SQLiteStore) GetReviews(ctx context.Context, tenantID, evaluationID string) ([]ReviewRecord, error) {
 	query := `SELECT id, evaluation_id, tenant_id, reviewer_id, decision, reason,
-		human_override, COALESCE(reviewed_classification, ''), created_at
+		human_override, COALESCE(reviewed_classification, ''), created_at,result_version
 		FROM reviews WHERE tenant_id = ? AND evaluation_id = ? ORDER BY id ASC`
 
 	rows, err := s.db.QueryContext(ctx, query, tenantID, evaluationID)
@@ -286,7 +314,7 @@ func (s *SQLiteStore) GetReviews(ctx context.Context, tenantID, evaluationID str
 		var r ReviewRecord
 		var overrideInt int
 		var createdStr string
-		if err := rows.Scan(&r.ID, &r.EvaluationID, &r.TenantID, &r.ReviewerID, &r.Decision, &r.Reason, &overrideInt, &r.ReviewedClassification, &createdStr); err != nil {
+		if err := rows.Scan(&r.ID, &r.EvaluationID, &r.TenantID, &r.ReviewerID, &r.Decision, &r.Reason, &overrideInt, &r.ReviewedClassification, &createdStr, &r.ResultVersion); err != nil {
 			return nil, err
 		}
 		r.HumanOverride = overrideInt == 1

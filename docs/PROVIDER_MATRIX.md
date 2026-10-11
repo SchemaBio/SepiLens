@@ -1,13 +1,13 @@
-# SepiLens 大模型 Provider 适配矩阵
+# Provider 协议与验证状态
 
-| 厂商 / 端点 | 协议标识 | 结构化输出支持 | 流式 SSE | 原生联网搜索 | 推荐生产配置 |
-|---|---|---|---|---|---|
-| **OpenAI Responses API** | `openai_responses` | 支持（JSON Schema） | 支持 | 支持 | 推荐首选 |
-| **OpenAI Chat Completions** | `openai_chat` | 支持（json_object） | 支持 | 需由 SepiLens 检索层代理 | 兼容支持 |
-| **DeepSeek (OpenAI 兼容端点)** | `openai_responses` | 支持 | 支持 | 需由 SepiLens 检索层代理 | 生产测试验证通过 |
-| **私有化 vLLM / Ollama** | `openai_responses` | 支持 | 支持 | 本地禁用联网 | 需开启 `ALLOW_PRIVATE_ENDPOINTS` |
+| 协议 | 实现 | 离线测试 | 真实厂商验收 |
+|---|---|---|---|
+| openai_responses | /responses、JSON Schema、SSE、usage、store=false | 本地 HTTP 模拟服务器 | 未完成 |
+| openai_chat | /chat/completions、response_format、SSE、usage | 本地 HTTP 模拟服务器 | 未完成 |
+| Anthropic | 不支持 | 无 | 后续范围 |
 
-## 联网与检索隔离原则
+两个适配器独立，不自动切换协议。模型和兼容厂商可能不支持某种参数；创建 profile 不等于通过能力测试。admin 的 POST `/v1/providers/test` 真正请求结构化输出和流式，可能产生费用。结果为 supported / unsupported / unknown；连接失败和缺失信息保持 unknown。native_web_search、function_calling、search_citations 不未经测试宣称支持。
 
-- 当外部供应商端点不具备原生联网工具能力时，SepiLens 自动由内置的 `SearchCoordinator` 通过专用 NCBI PubMed、ClinVar 及 ClinGen 接口提供权威来源补全；
-- 绝不假定兼容 Responses 接口的第三方端点自动支持 `web_search` 工具调用。
+profile 按租户版本化；任务只保存 profile ID/version，密钥加密且不读回。删除 profile 后无法执行依赖其密钥的新调用。默认环境模型用于 HPO，变异模型通过显式 `options.provider_profile_id` 选择。
+
+真实联调需部署方提供测试端点、模型和专用密钥，分别保存两种协议的 Schema、流式、用量、失败和不支持场景报告。报告不得包含密钥、患者原文或完整提示。当前仓库不把 mock 通过写成厂商验证通过。

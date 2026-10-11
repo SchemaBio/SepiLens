@@ -1,0 +1,2 @@
+# Embedded native rule sources must retain their bytes across Windows/Linux checkouts.
+internal/rules/svcv4/*.go text eol=lf

@@ -1,13 +1,5 @@
-# ClinGen/ACMG 2020 CNV Gain 规则状态
+# CNV Gain 2020
 
-- **引擎标识**：`cnv_gain_2020`
-- **参考规范**：Riggs et al. 2020 (Technical standards for the interpretation and reporting of constitutional copy-number variants)
-- **在线计算器**：https://cnvcalc.clinicalgenome.org/cnvcalc/cnv-gain
-- **启用状态**：`enabled` (`enabled: true`)
-- **适用范围**：仅限 Constitutional (胚系) CNV 增益/重复，明确拒绝体细胞肿瘤变异。
-- **独立性声明**：与 `cnv_loss_2020` 完全隔离，拥有独立的条款分支与基因数阶梯（Gain: 35/50 vs Loss: 25/35）。
-- **实现架构**：
-  1. 完整实现 Section 1–5 增益专项条款及三倍敏感性（TS）判定；
-  2. 串联重复（tandem duplication）未明方向或基因功能影响的情形保留不确定性说明；
-  3. 采用定点整数（百分位，100 = 1.00）精确计分，无二进制浮点误差；
-  4. 支持 ClinGen 官方计算器黄金用例 100% 一致性自动化比对。
+状态：disabled，等待独立黄金验证和专家批准。Gain 使用独立 rubric 和 gene count 阈值，不共享 Loss 判分。未知重复方向、断点或嵌合材料不会默认满足相应条款。当前工程测试不构成临床启用批准。
+
+实际规则和 pending 案例矩阵见 `../packages/cnv_gain_2020/`。完整官方数据和基因内事件临床对照尚待验收。启用条件见 `../../docs/RULESET_POLICY.md`。

@@ -1,0 +1,1 @@
+ALTER TABLE reviews ADD COLUMN result_version INTEGER NOT NULL DEFAULT 1;

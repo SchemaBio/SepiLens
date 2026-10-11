@@ -1,109 +1,285 @@
 package responses
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
-
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/option"
 	"github.com/pzweuj/sepilens/internal/llm"
 	"github.com/pzweuj/sepilens/internal/ssrf"
+	"io"
+	"net/http"
+	"strings"
+	"sync"
 )
 
-var (
-	ErrEmptyAPIKey = errors.New("api key is empty")
-)
+var ErrEmptyAPIKey = errors.New("api key is empty")
 
 type Config struct {
-	BaseURL      string
-	APIKey       string
-	Model        string
-	AllowPrivate bool
+	BaseURL, APIKey, Model string
+	AllowPrivate           bool
+	Protocol               llm.Protocol
 }
-
 type Client struct {
-	cfg    Config
-	client *openai.Client
+	cfg  Config
+	http *http.Client
+	mu   sync.Mutex
+	caps llm.ModelCapabilities
 }
 
 func NewClient(cfg Config) (*Client, error) {
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = "https://api.openai.com/v1"
 	}
-	validatedURL, err := ssrf.ValidateEndpoint(cfg.BaseURL, cfg.AllowPrivate)
-	if err != nil {
-		return nil, fmt.Errorf("ssrf check failed: %w", err)
+	if _, err := ssrf.ValidateEndpoint(cfg.BaseURL, cfg.AllowPrivate); err != nil {
+		return nil, err
 	}
-
-	opts := []option.RequestOption{
-		option.WithBaseURL(validatedURL.String()),
+	if cfg.Protocol == "" {
+		cfg.Protocol = llm.ProtocolOpenAIResponses
 	}
-	if cfg.APIKey != "" {
-		opts = append(opts, option.WithAPIKey(cfg.APIKey))
+	if cfg.Protocol != llm.ProtocolOpenAIResponses && cfg.Protocol != llm.ProtocolOpenAIChat {
+		return nil, errors.New("unsupported model protocol")
 	}
-
-	c := openai.NewClient(opts...)
-	return &Client{
-		cfg:    cfg,
-		client: &c,
-	}, nil
+	return &Client{cfg: cfg, http: ssrf.NewHTTPClient(cfg.AllowPrivate, nil)}, nil
 }
-
-func (c *Client) Capabilities(ctx context.Context) (llm.ModelCapabilities, error) {
-	return llm.ModelCapabilities{
-		StructuredOutput: true,
-		Streaming:        true,
-		FunctionCalling:  true,
-		NativeWebSearch:  true,
-		SearchCitations:  true,
-		UsageReporting:   true,
-	}, nil
+func (c *Client) Capabilities(context.Context) (llm.ModelCapabilities, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.caps, nil
 }
-
-func (c *Client) Generate(ctx context.Context, req llm.GenerateRequest) (llm.GenerateResult, error) {
-	model := req.Model
+func (c *Client) request(ctx context.Context, r llm.GenerateRequest, stream bool) (*http.Response, error) {
+	if c.cfg.APIKey == "" {
+		return nil, ErrEmptyAPIKey
+	}
+	model := r.Model
 	if model == "" {
 		model = c.cfg.Model
 	}
-
-	messages := []openai.ChatCompletionMessageParamUnion{}
-	if req.System != "" {
-		messages = append(messages, openai.SystemMessage(req.System))
+	if model == "" {
+		return nil, errors.New("model is required")
 	}
-	messages = append(messages, openai.UserMessage(req.Prompt))
-
-	params := openai.ChatCompletionNewParams{
-		Model:    openai.ChatModel(model),
-		Messages: messages,
+	p := map[string]any{"model": model, "stream": stream}
+	path := "responses"
+	if c.cfg.Protocol == llm.ProtocolOpenAIResponses {
+		p["input"] = r.Prompt
+		p["instructions"] = r.System
+		p["store"] = false
+		if r.JSONSchema != nil {
+			p["text"] = map[string]any{"format": map[string]any{"type": "json_schema", "name": "sepilens", "strict": true, "schema": r.JSONSchema}}
+		}
+		if r.MaxTokens != nil {
+			p["max_output_tokens"] = *r.MaxTokens
+		}
+	} else {
+		path = "chat/completions"
+		p["messages"] = []map[string]string{{"role": "system", "content": r.System}, {"role": "user", "content": r.Prompt}}
+		if r.JSONSchema != nil {
+			p["response_format"] = map[string]any{"type": "json_schema", "json_schema": map[string]any{"name": "sepilens", "strict": true, "schema": r.JSONSchema}}
+		}
+		if r.MaxTokens != nil {
+			p["max_completion_tokens"] = *r.MaxTokens
+		}
+		if stream {
+			p["stream_options"] = map[string]bool{"include_usage": true}
+		}
 	}
-
-	resp, err := c.client.Chat.Completions.New(ctx, params)
+	if r.Temperature != nil {
+		p["temperature"] = *r.Temperature
+	}
+	b, err := json.Marshal(p)
 	if err != nil {
-		return llm.GenerateResult{}, fmt.Errorf("generate completion: %w", err)
+		return nil, errors.New("invalid model request")
 	}
-
-	content := ""
-	finishReason := ""
-	if len(resp.Choices) > 0 {
-		content = resp.Choices[0].Message.Content
-		finishReason = string(resp.Choices[0].FinishReason)
+	req, err := http.NewRequestWithContext(ctx, "POST", strings.TrimRight(c.cfg.BaseURL, "/")+"/"+path, bytes.NewReader(b))
+	if err != nil {
+		return nil, errors.New("invalid model endpoint")
 	}
-
-	return llm.GenerateResult{
-		Content:      content,
-		InputTokens:  int(resp.Usage.PromptTokens),
-		OutputTokens: int(resp.Usage.CompletionTokens),
-		FinishReason: finishReason,
-	}, nil
+	req.Header.Set("Authorization", "Bearer "+c.cfg.APIKey)
+	req.Header.Set("Content-Type", "application/json")
+	res, err := c.http.Do(req)
+	if err != nil {
+		return nil, errors.New("model transport unavailable")
+	}
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		res.Body.Close()
+		return nil, fmt.Errorf("model request failed (HTTP %d)", res.StatusCode)
+	}
+	return res, nil
 }
 
-func (c *Client) Stream(ctx context.Context, req llm.GenerateRequest) (<-chan llm.ModelEvent, error) {
-	ch := make(chan llm.ModelEvent, 1)
-	ch <- llm.ModelEvent{
-		Type:    "done",
-		Content: "",
+type wire struct {
+	Status string `json:"status"`
+	Output []struct {
+		Content []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		} `json:"content"`
+	} `json:"output"`
+	Choices []struct {
+		Message struct {
+			Content string `json:"content"`
+		} `json:"message"`
+		Finish string `json:"finish_reason"`
+	} `json:"choices"`
+	Usage struct {
+		Input      int `json:"input_tokens"`
+		Output     int `json:"output_tokens"`
+		Prompt     int `json:"prompt_tokens"`
+		Completion int `json:"completion_tokens"`
+	} `json:"usage"`
+}
+
+func (c *Client) Generate(ctx context.Context, r llm.GenerateRequest) (llm.GenerateResult, error) {
+	res, err := c.request(ctx, r, false)
+	if err != nil {
+		return llm.GenerateResult{}, err
 	}
-	close(ch)
+	defer res.Body.Close()
+	b, err := io.ReadAll(io.LimitReader(res.Body, 4<<20))
+	if err != nil {
+		return llm.GenerateResult{}, errors.New("model response unreadable")
+	}
+	var w wire
+	if json.Unmarshal(b, &w) != nil {
+		return llm.GenerateResult{}, errors.New("model response malformed")
+	}
+	out := llm.GenerateResult{FinishReason: w.Status, InputTokens: w.Usage.Input, OutputTokens: w.Usage.Output}
+	if c.cfg.Protocol == llm.ProtocolOpenAIChat {
+		if len(w.Choices) == 0 {
+			return out, errors.New("model returned no choices")
+		}
+		out.Content = w.Choices[0].Message.Content
+		out.FinishReason = w.Choices[0].Finish
+		out.InputTokens = w.Usage.Prompt
+		out.OutputTokens = w.Usage.Completion
+	} else {
+		for _, o := range w.Output {
+			for _, v := range o.Content {
+				if v.Type == "output_text" {
+					out.Content += v.Text
+				}
+			}
+		}
+	}
+	if out.Content == "" || (c.cfg.Protocol == llm.ProtocolOpenAIChat && out.FinishReason != "stop") || (c.cfg.Protocol == llm.ProtocolOpenAIResponses && out.FinishReason != "completed") {
+		return out, errors.New("model output incomplete")
+	}
+	if r.JSONSchema != nil {
+		if err = llm.ValidateJSON(out.Content, r.JSONSchema); err != nil {
+			return out, errors.New("model output violates schema")
+		}
+	}
+	c.mu.Lock()
+	var metadata map[string]json.RawMessage
+	_ = json.Unmarshal(b, &metadata)
+	c.caps.UsageReporting = len(metadata["usage"]) > 0 && string(metadata["usage"]) != "null"
+	if r.JSONSchema != nil {
+		c.caps.StructuredOutput = true
+	}
+	c.mu.Unlock()
+	return out, nil
+}
+func (c *Client) Stream(ctx context.Context, r llm.GenerateRequest) (<-chan llm.ModelEvent, error) {
+	res, err := c.request(ctx, r, true)
+	if err != nil {
+		return nil, err
+	}
+	ch := make(chan llm.ModelEvent, 8)
+	go func() {
+		defer close(ch)
+		defer res.Body.Close()
+		send := func(e llm.ModelEvent) bool {
+			select {
+			case ch <- e:
+				return true
+			case <-ctx.Done():
+				return false
+			}
+		}
+		sc := bufio.NewScanner(res.Body)
+		sc.Buffer(make([]byte, 4096), 4<<20)
+		done := false
+		var content strings.Builder
+		for sc.Scan() {
+			line := sc.Text()
+			if !strings.HasPrefix(line, "data:") {
+				continue
+			}
+			data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+			if data == "[DONE]" {
+				done = true
+				break
+			}
+			var e struct {
+				Type     string `json:"type"`
+				Delta    string `json:"delta"`
+				Response wire   `json:"response"`
+				Choices  []struct {
+					Delta struct {
+						Content string `json:"content"`
+					} `json:"delta"`
+					Finish *string `json:"finish_reason"`
+				} `json:"choices"`
+				Usage wireUsage `json:"usage"`
+			}
+			if json.Unmarshal([]byte(data), &e) != nil {
+				send(llm.ModelEvent{Type: "error", Content: "malformed stream"})
+				return
+			}
+			if e.Type == "error" || e.Type == "response.failed" || e.Type == "response.incomplete" {
+				send(llm.ModelEvent{Type: "error", Content: "model stream failed"})
+				return
+			}
+			delta := e.Delta
+			for _, v := range e.Choices {
+				delta += v.Delta.Content
+				if v.Finish != nil {
+					if *v.Finish != "stop" {
+						send(llm.ModelEvent{Type: "error", Content: "model output incomplete"})
+						return
+					}
+					done = true
+				}
+			}
+			if delta != "" {
+				content.WriteString(delta)
+				if !send(llm.ModelEvent{Type: "token", Content: delta}) {
+					return
+				}
+			}
+			if e.Type == "response.completed" {
+				done = true
+				e.Usage = wireUsage{e.Response.Usage.Input, e.Response.Usage.Output, 0, 0}
+			}
+			if e.Usage.Input+e.Usage.Output+e.Usage.Prompt+e.Usage.Completion > 0 {
+				if !send(llm.ModelEvent{Type: "usage", InputTokens: e.Usage.Input + e.Usage.Prompt, OutputTokens: e.Usage.Output + e.Usage.Completion}) {
+					return
+				}
+			}
+		}
+		if sc.Err() != nil || !done {
+			send(llm.ModelEvent{Type: "error", Content: "model stream interrupted"})
+			return
+		}
+		if r.JSONSchema != nil {
+			if err := llm.ValidateJSON(content.String(), r.JSONSchema); err != nil {
+				send(llm.ModelEvent{Type: "error", Content: "model stream violates schema"})
+				return
+			}
+		}
+		c.mu.Lock()
+		c.caps.Streaming = true
+		c.mu.Unlock()
+		send(llm.ModelEvent{Type: "done"})
+	}()
 	return ch, nil
+}
+
+type wireUsage struct {
+	Input      int `json:"input_tokens"`
+	Output     int `json:"output_tokens"`
+	Prompt     int `json:"prompt_tokens"`
+	Completion int `json:"completion_tokens"`
 }

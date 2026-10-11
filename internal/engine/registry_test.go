@@ -24,8 +24,8 @@ func TestEngineRegistry_CompletenessAndInvariants(t *testing.T) {
 			if desc.Enabled {
 				t.Fatalf("svc_v4 must not be enabled")
 			}
-			if desc.Status != engine.StatusDisabled {
-				t.Fatalf("svc_v4 status must be disabled, got %s", desc.Status)
+			if desc.Status != engine.StatusExperimental || !desc.ExperimentalAvailable {
+				t.Fatalf("svc_v4 must advertise experimental availability only, got %+v", desc)
 			}
 		}
 	}
@@ -63,11 +63,11 @@ func TestEngineRegistry_CompletenessAndInvariants(t *testing.T) {
 
 	// Enabling HPO extract updates its status
 	errHPO := engine.EnableEngine(engine.EngineHPOExtract, "hpo-v1-deephpo")
-	if errHPO != nil {
-		t.Fatalf("failed to enable hpo engine: %v", errHPO)
+	if !errors.Is(errHPO, engine.ErrRulesetNotReady) {
+		t.Fatalf("unvalidated HPO enable bypass: %v", errHPO)
 	}
 	descHPO, _ := engine.Lookup(engine.EngineHPOExtract)
-	if !descHPO.Enabled || descHPO.Status != engine.StatusEnabled || descHPO.RulesetHash != "hpo-v1-deephpo" {
-		t.Fatalf("hpo engine was not updated properly: %+v", descHPO)
+	if descHPO.Enabled || descHPO.Status != engine.StatusDisabled {
+		t.Fatalf("unvalidated HPO enabled: %+v", descHPO)
 	}
 }

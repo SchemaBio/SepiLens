@@ -2,6 +2,7 @@ package negative_security_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -32,6 +33,9 @@ func setupSecurityServer(t *testing.T, logBuf *bytes.Buffer) (*api.Server, func(
 
 	cfg := config.Config{
 		AuthMode:              "required",
+		Simulation:            true,
+		MasterKey:             "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+		Principals:            map[string]config.Principal{"key-tenant-alpha": {Tenant: "tenant-alpha", Actor: "alpha", Role: "admin"}, "key-tenant-beta": {Tenant: "tenant-beta", Actor: "beta", Role: "admin"}},
 		AllowPrivateEndpoints: false, // strict public check
 		KeyToTenant: map[string]string{
 			"key-tenant-alpha": "tenant-alpha",
@@ -59,7 +63,13 @@ func setupSecurityServer(t *testing.T, logBuf *bytes.Buffer) (*api.Server, func(
 	srv.SetACMGEvaluator(acmgEval)
 	srv.SetCNVEngines(loss, gain, ann)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	if err := srv.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
 	return srv, func() {
+		cancel()
+		srv.Close()
 		_ = db.Close()
 	}
 }
@@ -91,7 +101,7 @@ func TestSecurity_MalformedCoordinatesAndBounds(t *testing.T) {
 					"type":              "loss",
 				},
 				"clinical_context": map[string]any{
-					"variant_origin": "germline_confirmed",
+					"variant_origin": "germline_confirmed", "sample_type": "blood",
 				},
 			},
 			expectedCode: http.StatusUnprocessableEntity,
@@ -111,7 +121,7 @@ func TestSecurity_MalformedCoordinatesAndBounds(t *testing.T) {
 					"type":              "loss",
 				},
 				"clinical_context": map[string]any{
-					"variant_origin": "germline_confirmed",
+					"variant_origin": "germline_confirmed", "sample_type": "blood",
 				},
 			},
 			expectedCode: http.StatusUnprocessableEntity,
@@ -131,7 +141,7 @@ func TestSecurity_MalformedCoordinatesAndBounds(t *testing.T) {
 					"type":              "loss",
 				},
 				"clinical_context": map[string]any{
-					"variant_origin": "germline_confirmed",
+					"variant_origin": "germline_confirmed", "sample_type": "blood",
 				},
 			},
 			expectedCode: http.StatusUnprocessableEntity,
@@ -151,6 +161,7 @@ func TestSecurity_MalformedCoordinatesAndBounds(t *testing.T) {
 					"gene":     "CFTR",
 				},
 				"clinical_context": map[string]any{
+					"variant_origin": "unknown", "sample_type": "blood",
 					"disease_id":  "MONDO:0009061",
 					"inheritance": "AR",
 				},
@@ -172,6 +183,7 @@ func TestSecurity_MalformedCoordinatesAndBounds(t *testing.T) {
 					"gene":     "CFTR",
 				},
 				"clinical_context": map[string]any{
+					"variant_origin": "unknown", "sample_type": "blood",
 					"disease_id":  "MONDO:0009061",
 					"inheritance": "AR",
 				},
@@ -193,7 +205,7 @@ func TestSecurity_MalformedCoordinatesAndBounds(t *testing.T) {
 					"type":              "loss",
 				},
 				"clinical_context": map[string]any{
-					"variant_origin": "somatic_confirmed",
+					"variant_origin": "somatic_confirmed", "sample_type": "blood",
 				},
 			},
 			expectedCode: http.StatusUnprocessableEntity,
@@ -238,6 +250,7 @@ func TestSecurity_CrossTenantIsolation_IDOR(t *testing.T) {
 			"gene":     "CFTR",
 		},
 		"clinical_context": map[string]any{
+			"variant_origin": "unknown", "sample_type": "blood",
 			"disease_id":  "MONDO:0009061",
 			"inheritance": "AR",
 		},

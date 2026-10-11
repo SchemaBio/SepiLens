@@ -51,6 +51,10 @@ func TestEvidence_StoreAndTenantIsolation(t *testing.T) {
 		CreatedAt: time.Now().UTC(),
 	}
 
+	snp.Hash, err = evidence.ComputeSnapshotHash(snp.Sources, snp.Items, snp.Provenance)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := store.SaveSnapshot(ctx, snp); err != nil {
 		t.Fatalf("failed to save snapshot: %v", err)
 	}
@@ -60,7 +64,7 @@ func TestEvidence_StoreAndTenantIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to fetch snapshot: %v", err)
 	}
-	if fetched.SnapshotID != "snp-001" || fetched.Hash != "hash-123456" || len(fetched.Sources) != 1 {
+	if fetched.SnapshotID != "snp-001" || fetched.Hash != snp.Hash || len(fetched.Sources) != 1 {
 		t.Fatalf("unexpected fetched snapshot: %+v", fetched)
 	}
 
@@ -68,5 +72,14 @@ func TestEvidence_StoreAndTenantIsolation(t *testing.T) {
 	_, errTenantB := store.GetSnapshot(ctx, "tenant-B", "eval-100")
 	if !errors.Is(errTenantB, evidence.ErrSnapshotNotFound) {
 		t.Fatalf("expected ErrSnapshotNotFound for other tenant, got %v", errTenantB)
+	}
+	if err := store.SaveSnapshot(ctx, snp); err == nil {
+		t.Fatal("snapshot must be immutable")
+	}
+	if _, err := db.Exec(`UPDATE evidence_snapshots SET hash='tampered' WHERE snapshot_id='snp-001'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.GetSnapshot(ctx, "tenant-A", "eval-100"); err == nil {
+		t.Fatal("tampering must fail reads")
 	}
 }

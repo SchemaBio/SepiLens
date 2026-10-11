@@ -28,6 +28,9 @@ func init() {
 		"100.64.0.0/10",  // CGNAT
 		"0.0.0.0/8",      // Current network / unspecified
 		"::/128",         // IPv6 unspecified
+		"192.0.0.0/24", "192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24",
+		"198.18.0.0/15", "240.0.0.0/4",
+		"64:ff9b::/96", "64:ff9b:1::/48", "100::/64", "2001:db8::/32", "2001:2::/48", "2001:10::/28", "2002::/16",
 	}
 	for _, c := range cidrs {
 		_, ipnet, err := net.ParseCIDR(c)
@@ -65,6 +68,9 @@ func ValidateEndpoint(rawURL string, allowPrivate bool) (*url.URL, error) {
 	if hostname == "" {
 		return nil, fmt.Errorf("%w: missing host", ErrInvalidURL)
 	}
+	if u.User != nil || u.Fragment != "" {
+		return nil, ErrInvalidURL
+	}
 
 	lowerHost := strings.ToLower(hostname)
 	if !allowPrivate {
@@ -87,6 +93,9 @@ func ValidateEndpoint(rawURL string, allowPrivate bool) (*url.URL, error) {
 }
 
 func isRestrictedIP(ip net.IP) bool {
+	if !ip.IsGlobalUnicast() {
+		return true
+	}
 	if ip.IsLoopback() || ip.IsUnspecified() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsPrivate() {
 		return true
 	}

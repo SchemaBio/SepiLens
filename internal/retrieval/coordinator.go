@@ -3,6 +3,7 @@ package retrieval
 import (
 	"context"
 	"errors"
+	"sort"
 	"sync"
 	"time"
 
@@ -23,18 +24,19 @@ var (
 )
 
 type Query struct {
-	Assembly    string `json:"assembly"`
-	Chrom       string `json:"chrom"`
-	Pos         int64  `json:"pos,omitempty"`
-	Start       int64  `json:"start,omitempty"`
-	End         int64  `json:"end,omitempty"`
-	Ref         string `json:"ref,omitempty"`
-	Alt         string `json:"alt,omitempty"`
-	Gene        string `json:"gene,omitempty"`
-	DiseaseID   string `json:"disease_id,omitempty"`
-	HGVS        string `json:"hgvs,omitempty"`
-	VariantType string `json:"variant_type"` // "snv", "cnv_loss", "cnv_gain"
-	Mode        Mode   `json:"mode"`
+	IDs         []string `json:"-"`
+	Assembly    string   `json:"assembly"`
+	Chrom       string   `json:"chrom"`
+	Pos         int64    `json:"pos,omitempty"`
+	Start       int64    `json:"start,omitempty"`
+	End         int64    `json:"end,omitempty"`
+	Ref         string   `json:"ref,omitempty"`
+	Alt         string   `json:"alt,omitempty"`
+	Gene        string   `json:"gene,omitempty"`
+	DiseaseID   string   `json:"disease_id,omitempty"`
+	HGVS        string   `json:"hgvs,omitempty"`
+	VariantType string   `json:"variant_type"` // "snv", "cnv_loss", "cnv_gain"
+	Mode        Mode     `json:"mode"`
 }
 
 type Retriever interface {
@@ -76,7 +78,11 @@ func NewSearchCoordinator(cfg CoordinatorConfig, retrievers []Retriever) *Search
 
 func (sc *SearchCoordinator) Coordinate(ctx context.Context, q Query) (evidence.ProvenanceMetadata, []evidence.Source, error) {
 	start := time.Now()
-	timeoutCtx, cancel := context.WithTimeout(ctx, sc.cfg.Timeout)
+	timeout := sc.cfg.Timeout
+	if q.Mode == ModeDeep {
+		timeout = 30 * time.Second
+	}
+	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	maxReqs := 0
@@ -92,6 +98,9 @@ func (sc *SearchCoordinator) Coordinate(ctx context.Context, q Query) (evidence.
 
 	var allSources []evidence.Source
 	requestCount := 0
+	budget := &Budget{Max: maxReqs}
+	timeoutCtx = context.WithValue(timeoutCtx, budgetKey{}, budget)
+	var retrievalErrors []error
 
 	var mu sync.Mutex
 	var wg sync.WaitGroup
@@ -113,7 +122,12 @@ func (sc *SearchCoordinator) Coordinate(ctx context.Context, q Query) (evidence.
 		go func(ret Retriever) {
 			defer wg.Done()
 			sources, err := ret.Retrieve(timeoutCtx, q)
-			if err == nil && len(sources) > 0 {
+			if err != nil {
+				mu.Lock()
+				retrievalErrors = append(retrievalErrors, err)
+				mu.Unlock()
+			}
+			if len(sources) > 0 {
 				mu.Lock()
 				allSources = append(allSources, sources...)
 				mu.Unlock()
@@ -122,6 +136,8 @@ func (sc *SearchCoordinator) Coordinate(ctx context.Context, q Query) (evidence.
 	}
 
 	wg.Wait()
+	requestCount = budget.Used
+	sort.SliceStable(allSources, func(i, j int) bool { return allSources[i].ID < allSources[j].ID })
 
 	// Deduplication and sanitation
 	dedupMap := make(map[string]bool)
@@ -159,13 +175,21 @@ func (sc *SearchCoordinator) Coordinate(ctx context.Context, q Query) (evidence.
 	prov := evidence.ProvenanceMetadata{
 		RetrievalMode:      string(q.Mode),
 		RetrievalTimestamp: time.Now().UTC().Format(time.RFC3339),
-		DatasetVersions: map[string]string{
-			"clingen_dosage": "2026-Q1",
-			"clinvar":        "2026-10",
-		},
-		RequestsCount: requestCount,
-		DurationMS:    time.Since(start).Milliseconds(),
+		DatasetVersions:    map[string]string{},
+		RequestsCount:      requestCount,
+		DurationMS:         time.Since(start).Milliseconds(),
 	}
 
+	for _, src := range finalSources {
+		if src.DatasetVersion != "" {
+			prov.DatasetVersions[string(src.Type)] = src.DatasetVersion
+		}
+	}
+	if len(retrievalErrors) > 0 {
+		return prov, finalSources, retrievalErrors[0]
+	}
+	if timeoutCtx.Err() != nil {
+		return prov, finalSources, ErrTimeoutExceeded
+	}
 	return prov, finalSources, nil
 }

@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"github.com/pzweuj/sepilens/internal/rules/svcv4"
 	"sync"
 )
 
@@ -22,16 +23,18 @@ const (
 	StatusRegisteredNotImplemented Status = "registered_not_implemented"
 	StatusDisabled                 Status = "disabled"
 	StatusEnabled                  Status = "enabled"
+	StatusExperimental             Status = "experimental"
 )
 
 type Descriptor struct {
-	ID               EngineID `json:"id"`
-	Name             string   `json:"name"`
-	GuidelineVersion string   `json:"guideline_version"`
-	TargetType       string   `json:"target_type"`
-	Status           Status   `json:"status"`
-	Enabled          bool     `json:"enabled"`
-	RulesetHash      string   `json:"ruleset_hash"`
+	ExperimentalAvailable bool     `json:"experimental_available"`
+	ID                    EngineID `json:"id"`
+	Name                  string   `json:"name"`
+	GuidelineVersion      string   `json:"guideline_version"`
+	TargetType            string   `json:"target_type"`
+	Status                Status   `json:"status"`
+	Enabled               bool     `json:"enabled"`
+	RulesetHash           string   `json:"ruleset_hash"`
 }
 
 var (
@@ -48,7 +51,7 @@ var (
 			Name:             "HPO Term Extraction",
 			GuidelineVersion: "HPO-2026",
 			TargetType:       "phenotype",
-			Status:           StatusRegisteredNotImplemented,
+			Status:           StatusDisabled,
 			Enabled:          false,
 			RulesetHash:      "hpo-extract-v0",
 		},
@@ -57,26 +60,27 @@ var (
 			Name:             "ACMG/AMP 2015 Sequence Variant Interpretation",
 			GuidelineVersion: "2015",
 			TargetType:       "snv_indel",
-			Status:           StatusEnabled,
-			Enabled:          true,
+			Status:           StatusDisabled,
+			Enabled:          false,
 			RulesetHash:      "acmg-2015-v1",
 		},
 		EngineSVCv4: {
-			ID:               EngineSVCv4,
-			Name:             "SVC v4 Sequence Variant Classification",
-			GuidelineVersion: "v4-draft",
-			TargetType:       "snv_indel",
-			Status:           StatusDisabled,
-			Enabled:          false,
-			RulesetHash:      "svcv4-disabled",
+			ID:                    EngineSVCv4,
+			Name:                  "SVC v4 Sequence Variant Classification",
+			GuidelineVersion:      "draft-reference-ef66faff51a265fef7b5c4e6439905f3aa540c46",
+			TargetType:            "snv_indel",
+			Status:                StatusExperimental,
+			Enabled:               false,
+			ExperimentalAvailable: true,
+			RulesetHash:           svcv4.RulesetHash(),
 		},
 		EngineCNVLoss2020: {
 			ID:               EngineCNVLoss2020,
 			Name:             "ClinGen/ACMG 2020 Constitutional CNV Loss Rubric",
 			GuidelineVersion: "2020",
 			TargetType:       "cnv_loss",
-			Status:           StatusEnabled,
-			Enabled:          true,
+			Status:           StatusDisabled,
+			Enabled:          false,
 			RulesetHash:      "cnv-loss-2020-v1",
 		},
 		EngineCNVGain2020: {
@@ -84,8 +88,8 @@ var (
 			Name:             "ClinGen/ACMG 2020 Constitutional CNV Gain Rubric",
 			GuidelineVersion: "2020",
 			TargetType:       "cnv_gain",
-			Status:           StatusEnabled,
-			Enabled:          true,
+			Status:           StatusDisabled,
+			Enabled:          false,
 			RulesetHash:      "cnv-gain-2020-v1",
 		},
 	}
@@ -108,17 +112,11 @@ func EnableEngine(id EngineID, hash string) error {
 	if id == EngineSVCv4 {
 		return ErrEngineDisabled
 	}
-	d, ok := canonical[id]
+	_, ok := canonical[id]
 	if !ok {
 		return fmt.Errorf("%w: %s", ErrUnknownEngine, id)
 	}
-	d.Status = StatusEnabled
-	d.Enabled = true
-	if hash != "" {
-		d.RulesetHash = hash
-	}
-	canonical[id] = d
-	return nil
+	return ErrRulesetNotReady
 }
 
 func All() []Descriptor {

@@ -30,7 +30,7 @@ var Richards2015Baseline = Specification{
 	BS1Threshold:   0.01,
 	PM2Threshold:   0.0001,
 	PM2Strength:    StrengthModerate,
-	PVS1Applicable: true,
+	PVS1Applicable: false,
 	IsVCEP:         false,
 	Version:        "2015-baseline",
 }
@@ -59,7 +59,7 @@ func NewSpecificationRegistry() *SpecificationRegistry {
 	reg := &SpecificationRegistry{
 		specs: make(map[string]Specification),
 	}
-	reg.Register(CFTR_VCEP)
+	// Published VCEP packages must be imported and version-locked explicitly.
 	return reg
 }
 
@@ -77,12 +77,6 @@ func (r *SpecificationRegistry) Resolve(gene, diseaseID, inheritance string) Spe
 	// Exact match: gene + disease + inheritance
 	key := makeKey(gene, diseaseID, inheritance)
 	if spec, ok := r.specs[key]; ok {
-		return spec
-	}
-
-	// Gene match fallback
-	geneKey := makeKey(gene, "*", "*")
-	if spec, ok := r.specs[geneKey]; ok {
 		return spec
 	}
 

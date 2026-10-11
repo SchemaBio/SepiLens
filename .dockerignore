@@ -1,0 +1,10 @@
+.git
+.env
+.env.*
+!.env.example
+tmp
+dist
+bin
+data
+*.db
+*.bak

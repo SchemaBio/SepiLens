@@ -6,9 +6,9 @@ import (
 )
 
 var (
-	reDigits   = regexp.MustCompile(`^\d{1,10}$`)
-	reDOI      = regexp.MustCompile(`(?i)^10\.\d{4,9}/[-._;()/:A-Za-z0-9]+$`)
-	reClinVar  = regexp.MustCompile(`(?i)^(VCV\d+(\.\d+)?|RCV\d+(\.\d+)?|\d+)$`)
+	reDigits  = regexp.MustCompile(`^\d{1,10}$`)
+	reDOI     = regexp.MustCompile(`(?i)^10\.\d{4,9}/[-._;()/:A-Za-z0-9]+$`)
+	reClinVar = regexp.MustCompile(`(?i)^(VCV\d+(\.\d+)?|RCV\d+(\.\d+)?|\d+)$`)
 )
 
 type SourceVerifier struct{}
@@ -25,24 +25,25 @@ func (sv *SourceVerifier) VerifySource(src *Source) {
 	src.PMID = strings.TrimSpace(src.PMID)
 	src.DOI = strings.TrimSpace(src.DOI)
 	src.ClinVarID = strings.TrimSpace(src.ClinVarID)
+	src.IdentifierValid = false
 
 	switch src.Type {
 	case SourceTypePubMed:
 		if src.PMID != "" && reDigits.MatchString(src.PMID) {
-			src.ValidationStatus = ValidationVerified
+			src.IdentifierValid = true
 		} else if src.DOI != "" && reDOI.MatchString(src.DOI) {
-			src.ValidationStatus = ValidationVerified
+			src.IdentifierValid = true
 		} else {
 			src.ValidationStatus = ValidationUnverified
 		}
 	case SourceTypeClinVar:
 		if src.ClinVarID != "" && reClinVar.MatchString(src.ClinVarID) {
-			src.ValidationStatus = ValidationVerified
+			src.IdentifierValid = true
 		} else {
 			src.ValidationStatus = ValidationUnverified
 		}
 	case SourceTypeClinGenDosage, SourceTypeCuratedSnapshot:
-		src.ValidationStatus = ValidationVerified
+		src.IdentifierValid = src.DatasetVersion != ""
 	case SourceTypeWebSearch:
 		// Web search findings remain unverified until corroborated
 		if src.ValidationStatus == "" {
@@ -53,6 +54,10 @@ func (sv *SourceVerifier) VerifySource(src *Source) {
 			src.ValidationStatus = ValidationUnverified
 		}
 	}
+	src.ValidationStatus = ValidationUnverified
+	if src.IdentifierValid && src.RecordExists && src.ObjectMatched && src.MaterialVerified {
+		src.ValidationStatus = ValidationVerified
+	}
 }
 
 // EnforceEvidenceIntegrity guarantees medical invariant:
@@ -61,7 +66,7 @@ func (sv *SourceVerifier) VerifySource(src *Source) {
 func (sv *SourceVerifier) EnforceEvidenceIntegrity(items []EvidenceItem, sources []Source) []EvidenceItem {
 	verifiedSources := make(map[string]bool, len(sources))
 	for _, s := range sources {
-		if s.ValidationStatus == ValidationVerified {
+		if s.ValidationStatus == ValidationVerified && s.IdentifierValid && s.RecordExists && s.ObjectMatched && s.MaterialVerified {
 			verifiedSources[s.ID] = true
 		}
 	}

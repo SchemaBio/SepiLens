@@ -1,31 +1,19 @@
-# SepiLens 医学规则集管理与门禁策略
+# 规则发布与批准
 
-## 1. 五引擎独立注册与生命周期
+固定引擎：`hpo_extract`、`acmg_amp_2015`、`svc_v4`、`cnv_loss_2020`、`cnv_gain_2020`。临床 enabled 默认为 false，依赖注入不能绕过。SVC v4 状态 experimental，可显式请求草案评分，本轮不可临床批准。
 
-SepiLens 系统固定包含五个引擎标识，所有引擎在代码与规则资源层严格隔离：
+`sepilens rules export -out rules/packages` 导出 ACMG/Loss/Gain 实际规则、适用事实、来源和逐条验证矩阵。矩阵中的 pending 是明确的临床验收缺口。工程单元测试和当前 HPO fixture 不冒充独立黄金案例。
 
-| 引擎标识 | 指南基准 | 适用对象 | 首版策略 |
-|---|---|---|---|
-| `hpo_extract` | HPO 本地本体 + LLM 精确匹配 | 临床表型文本 | 移植 DeepHPO 流程，独立回归集 |
-| `acmg_amp_2015` | Richards et al. 2015 | 胚系 SNV/InDel | 确定性组合表，ClinGen 细则注册 |
-| `svc_v4` | ClinGen SVC v4 官方标准 | 胚系 SNV/InDel | 保持禁用，满足就绪门禁后启用 |
-| `cnv_loss_2020` | Riggs et al. 2020 (Loss) | 胚系 CNV 缺失 | 独立评分表与 ClinGen Loss 计算器对齐 |
-| `cnv_gain_2020` | Riggs et al. 2020 (Gain) | 胚系 CNV 增益 | 独立评分表与 ClinGen Gain 计算器对齐 |
+```sh
+sepilens validate -engine cnv_loss_2020 -cases independently-reviewed.json -bundle locked-bundle -out validation.json
+```
 
-## 2. SVC v4 就绪门禁
+案例文件包含独立期望分类、整数分值、代码、出处、复核人员，以及 positive / negative / missing / boundary / mutual_exclusion / cap 类别；格式定义见 `internal/validation/cases.go`。期望不得从当前实现生成。任一不一致返回失败并保留报告。
 
-1. **正式标准发布**：以 ACMG 与 ClinGen 联合发布的正式 SVC v4 序列变异解释指南为准；
-2. **规范版本锁定**：CSpec 方法模型与条款字典冻结并形成机器可读规则；
-3. **代码实现与验证**：实现确定性分类逻辑并通过标准黄金用例回归；
-4. **人工审批准入**：经医学与法规专家审核后方可由管理员手动开启。在此之前，API 保持 `409 RULESET_NOT_AVAILABLE`，禁止降级到 2015 规则。
+启用包需要每个支持条款覆盖全部六类案例，案例通过且有来源/人员记录。批准记录经部署方受信 Ed25519 公钥验证，绑定实际规则内容、验证报告、版本和当前可执行文件散列。`serve -rules-dir PATH` 读取 `{engine_id}.approval.json` 与 `{engine_id}.validation.json`；`SEPILENS_APPROVAL_PUBLIC_KEY` 是 base64 公钥。内容或二进制改变使批准失效。签名私钥由医学批准方保管，程序不生成假批准。
 
-## 3. CNV Loss 与 Gain 独立性
+目前未提供任何真实专家批准包，因此全部医学分类门禁保持关闭。HPO 可提取候选但没有医学启用签名流程；本轮不声称已获 HPO 医学启用批准。
 
-- **Loss 与 Gain 具有完全不同的条款分支、上限设定与证据逻辑**（例如 haploinsufficiency 对比 triplosensitivity）；
-- 相同坐标区间的 Loss 和 Gain 评估必须生成完全隔离的规则记录，禁止共用条款判定或分值聚合。
+ACMG 必须逐项提供经过专业核验的事实与来源，缺失 AF 不满足 PM2、未知机制不满足 PVS1，同义后果不自动满足 BP7；重复代码和相关来源显式处理。VCEP 不自带已发布细则，仅按 gene–disease–MOI 精确匹配外部已核验配置，内置 CFTR 类型不作为生产批准资料。
 
-## 4. 2020 CNV 标准与 Dosage Sensitivity SOP 关系
-
-- ClinGen Dosage Sensitivity Curation SOP 主要是剂量敏感性证据整理流程规范，并未废止或整体替代 2020 年发表的 constitutional CNV 技术标准；
-- 本系统在计算 CNV 致病性评分时，以 2020 ACMG/ClinGen 联合技术标准正文、补充材料及官方在线计算器为准；
-- 剂量敏感性数据作为输入知识源之一，保留版本戳与策展日期。
+CNV Loss/Gain 保存独立 rubric，整数 100 代表 1.00。缺少完整 assembly 数据不把空注释当基因沙漠；未确认结构/方向不能满足相应适用事实。病例重复、互斥和上限在规则层校验，专业人员仍需对病例、家系和疾病一致性负责。

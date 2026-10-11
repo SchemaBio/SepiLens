@@ -8,6 +8,10 @@ import (
 
 func TestSpecificationRegistry_Resolve(t *testing.T) {
 	reg := acmg2015.NewSpecificationRegistry()
+	if reg.Resolve("CFTR", "MONDO:0009061", "AR").IsVCEP {
+		t.Fatal("unapproved default VCEP")
+	}
+	reg.Register(acmg2015.CFTR_VCEP)
 
 	// 1. CFTR VCEP exact match
 	cftrSpec := reg.Resolve("CFTR", "MONDO:0009061", "AR")

@@ -84,15 +84,15 @@ func ParsePreprocessJSON(raw string) (PreprocessResult, error) {
 	}
 
 	type rawPreprocess struct {
-		Symptoms         []string `json:"symptoms"`
-		MedicalHistory   []string `json:"medical_history"`
-		MedicalHistoryAlt []string `json:"medicalHistory"`
-		Diagnosis        []string `json:"diagnosis"`
-		NegatedSymptoms  []string `json:"negated_symptoms"`
+		Symptoms           []string `json:"symptoms"`
+		MedicalHistory     []string `json:"medical_history"`
+		MedicalHistoryAlt  []string `json:"medicalHistory"`
+		Diagnosis          []string `json:"diagnosis"`
+		NegatedSymptoms    []string `json:"negated_symptoms"`
 		NegatedSymptomsAlt []string `json:"negatedSymptoms"`
-		FamilyHistory    []string `json:"family_history"`
-		FamilyHistoryAlt []string `json:"familyHistory"`
-		InferredSymptoms []string `json:"inferred_symptoms"`
+		FamilyHistory      []string `json:"family_history"`
+		FamilyHistoryAlt   []string `json:"familyHistory"`
+		InferredSymptoms   []string `json:"inferred_symptoms"`
 	}
 
 	var parsed rawPreprocess
@@ -120,14 +120,15 @@ func ParsePreprocessJSON(raw string) (PreprocessResult, error) {
 		NegatedSymptoms:  deduplicateStrings(negated),
 		FamilyHistory:    deduplicateStrings(famHist),
 		InferredSymptoms: deduplicateStrings(parsed.InferredSymptoms),
-		RawExtraction:    raw,
 	}, nil
 }
 
 type RawMatchItem struct {
-	HPOID      string `json:"hpo_id"`
-	Confidence string `json:"confidence"`
-	Remark     string `json:"remark"`
+	OriginalSymptom string   `json:"original_symptom"`
+	Polarity        Polarity `json:"polarity"`
+	HPOID           string   `json:"hpo_id"`
+	Confidence      string   `json:"confidence"`
+	Remark          string   `json:"remark"`
 }
 
 func ParseMatchResponse(raw string, idx *Index) ([]ExtractionItem, error) {
@@ -169,12 +170,16 @@ func ParseMatchResponse(raw string, idx *Index) ([]ExtractionItem, error) {
 			conf = ConfidenceLow
 		}
 
-		origSymptom := ""
+		origSymptom := item.OriginalSymptom
 		if strings.HasPrefix(item.Remark, "【") && strings.Contains(item.Remark, "】") {
 			parts := strings.SplitN(item.Remark[len("【"):], "】", 2)
 			origSymptom = parts[0]
 		}
 
+		polarity := item.Polarity
+		if polarity == "" {
+			polarity = PolarityPresent
+		}
 		results = append(results, ExtractionItem{
 			HPO:             term.ID,
 			Name:            term.Name,
@@ -184,7 +189,7 @@ func ParseMatchResponse(raw string, idx *Index) ([]ExtractionItem, error) {
 			Confidence:      conf,
 			Remark:          item.Remark,
 			OriginalSymptom: origSymptom,
-			Polarity:        PolarityPresent,
+			Polarity:        polarity,
 			ReviewRequired:  true,
 		})
 	}
@@ -197,6 +202,9 @@ func ExtractQueryKeywords(prep PreprocessResult) []string {
 	combined = append(combined, prep.Symptoms...)
 	combined = append(combined, prep.MedicalHistory...)
 	combined = append(combined, prep.Diagnosis...)
+	combined = append(combined, prep.NegatedSymptoms...)
+	combined = append(combined, prep.FamilyHistory...)
+	combined = append(combined, prep.InferredSymptoms...)
 
 	var expanded []string
 	for _, item := range combined {

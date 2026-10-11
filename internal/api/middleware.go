@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"github.com/go-chi/chi/v5"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -17,6 +18,7 @@ type ctxKey string
 const (
 	ctxKeyRequestID ctxKey = "request_id"
 	ctxKeyTenantID  ctxKey = "tenant_id"
+	ctxKeyPrincipal ctxKey = "principal"
 )
 
 func WithRequestID(ctx context.Context, id string) context.Context {
@@ -43,8 +45,8 @@ func GetTenantID(ctx context.Context) string {
 
 func RequestIDMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		reqID := r.Header.Get("X-Request-ID")
-		if reqID == "" {
+		reqID := ""
+		{
 			var b [12]byte
 			_, _ = rand.Read(b[:])
 			reqID = "req-" + hex.EncodeToString(b[:])
@@ -67,7 +69,7 @@ func LoggingMiddleware(logger *slog.Logger) func(http.Handler) http.Handler {
 				"request_id", GetRequestID(r.Context()),
 				"tenant_id", GetTenantID(r.Context()),
 				"method", r.Method,
-				"path", r.URL.Path,
+				"route", chi.RouteContext(r.Context()).RoutePattern(),
 				"status", ww.status,
 				"duration_ms", time.Since(start).Milliseconds(),
 			)
@@ -97,6 +99,7 @@ func AuthMiddleware(cfg config.Config) func(http.Handler) http.Handler {
 
 			if cfg.AuthMode == "disabled" {
 				ctx := WithTenantID(r.Context(), "anonymous-dev")
+				ctx = context.WithValue(ctx, ctxKeyPrincipal, config.Principal{Tenant: "anonymous-dev", Actor: "dev", Role: "admin"})
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}
@@ -107,16 +110,31 @@ func AuthMiddleware(cfg config.Config) func(http.Handler) http.Handler {
 				return
 			}
 
-			tenant, ok := cfg.LookupTenant(key)
+			principal, ok := cfg.LookupPrincipal(key)
 			if !ok {
 				WriteError(w, r, http.StatusUnauthorized, ErrCodeAuthFailed, "invalid API key", false)
 				return
 			}
 
-			ctx := WithTenantID(r.Context(), tenant)
+			ctx := WithTenantID(r.Context(), principal.Tenant)
+			ctx = context.WithValue(ctx, ctxKeyPrincipal, principal)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+func principal(r *http.Request) config.Principal {
+	p, _ := r.Context().Value(ctxKeyPrincipal).(config.Principal)
+	return p
+}
+func requireRole(w http.ResponseWriter, r *http.Request, roles ...string) bool {
+	p := principal(r)
+	for _, role := range roles {
+		if p.Role == role {
+			return true
+		}
+	}
+	WriteError(w, r, http.StatusForbidden, ErrCodeAuthFailed, "role does not allow this operation", false)
+	return false
 }
 
 func extractAPIKey(r *http.Request) string {

@@ -1,118 +1,63 @@
 package acmg2015_test
 
 import (
-	"testing"
-
 	"github.com/pzweuj/sepilens/internal/evidence"
-	"github.com/pzweuj/sepilens/internal/rules/acmg2015"
+	a "github.com/pzweuj/sepilens/internal/rules/acmg2015"
+	"testing"
 )
 
-func TestEvaluator_CFTR_Nonsense_Pathogenic(t *testing.T) {
-	reg := acmg2015.NewSpecificationRegistry()
-	eval := acmg2015.NewEvaluator(reg)
-
-	zeroAF := 0.00001
-	variant := acmg2015.SNVVariantInput{
-		Assembly:        "GRCh38",
-		Chrom:           "chr7",
-		Pos:             117548628,
-		Ref:             "G",
-		Alt:             "T",
-		Transcript:      "NM_000492.3",
-		HGVSc:           "c.1624G>T",
-		HGVSp:           "p.Gly542Ter",
-		Gene:            "CFTR",
-		Consequence:     "nonsense",
-		AlleleFrequency: &zeroAF,
-	}
-
-	clinicalCtx := acmg2015.ClinicalContextInput{
-		DiseaseID:     "MONDO:0009061",
-		Inheritance:   "AR",
-		VariantOrigin: "germline_confirmed",
-	}
-
-	sources := []evidence.Source{
-		{
-			ID:               "SRC-PMID-FUNC",
-			Type:             evidence.SourceTypePubMed,
-			PMID:             "12345678",
-			Title:            "Functional analysis of CFTR nonsense mutation",
-			Snippet:          "Patch clamp showed pathogenic functional effect with loss of chloride transport.",
-			ValidationStatus: evidence.ValidationVerified,
-		},
-	}
-
-	out := eval.Evaluate(variant, clinicalCtx, sources)
-	if out.Classification != acmg2015.ClassPathogenic {
-		t.Fatalf("expected Pathogenic for CFTR G542X with functional evidence, got %s (out: %+v)", out.Classification, out)
-	}
-	if !out.IsVCEP || out.SpecificationID != "clingen_cftr_vcep_v1" {
-		t.Fatalf("expected CFTR VCEP to be applied, got spec %s", out.SpecificationID)
+func TestEvaluatorNeverInfersMaterial(t *testing.T) {
+	af := 0.1
+	e := a.NewEvaluator(nil)
+	for _, v := range []a.SNVVariantInput{{Gene: "CFTR", Consequence: "stop_gained"}, {Consequence: "synonymous_variant"}, {AlleleFrequency: &af}} {
+		out := e.Evaluate(v, a.ClinicalContextInput{}, nil)
+		if out.Classification != a.ClassVUS || len(out.AppliedCriteria) != 0 || len(out.MissingInformation) == 0 {
+			t.Fatalf("unsupported inference: %+v", out)
+		}
 	}
 }
 
-func TestEvaluator_HighFrequency_Benign(t *testing.T) {
-	eval := acmg2015.NewEvaluator(nil)
-
-	highAF := 0.08 // 8% population frequency -> BA1
-	variant := acmg2015.SNVVariantInput{
-		Assembly:        "GRCh38",
-		Chrom:           "chr1",
-		Pos:             12345678,
-		Ref:             "A",
-		Alt:             "G",
-		Gene:            "GENE1",
-		Consequence:     "missense",
-		AlleleFrequency: &highAF,
-	}
-
-	clinicalCtx := acmg2015.ClinicalContextInput{
-		DiseaseID:   "MONDO:0000001",
-		Inheritance: "AD",
-	}
-
-	out := eval.Evaluate(variant, clinicalCtx, nil)
-	if out.Classification != acmg2015.ClassBenign {
-		t.Fatalf("expected Benign due to BA1, got %s", out.Classification)
-	}
-}
-
-func TestEvaluator_ConflictingCriteria_VUS(t *testing.T) {
-	eval := acmg2015.NewEvaluator(nil)
-
-	// Nonsense mutation (PVS1) but high population frequency (BA1)
-	conflictAF := 0.06
-	variant := acmg2015.SNVVariantInput{
-		Assembly:        "GRCh38",
-		Chrom:           "chr7",
-		Pos:             117548628,
-		Ref:             "G",
-		Alt:             "T",
-		HGVSp:           "p.Gly542Ter",
-		Gene:            "CFTR",
-		Consequence:     "nonsense",
-		AlleleFrequency: &conflictAF,
-	}
-
-	clinicalCtx := acmg2015.ClinicalContextInput{
-		DiseaseID:   "MONDO:0009061",
-		Inheritance: "AR",
-	}
-
-	sources := []evidence.Source{
-		{
-			ID:               "SRC-1",
-			Snippet:          "Damaging functional assay",
-			ValidationStatus: evidence.ValidationVerified,
-		},
-	}
-
-	out := eval.Evaluate(variant, clinicalCtx, sources)
-	if out.Classification != acmg2015.ClassVUS {
-		t.Fatalf("expected VUS due to conflicting pathogenic and benign criteria, got %s", out.Classification)
-	}
-	if len(out.RuleConflicts) == 0 {
-		t.Fatalf("expected rule conflicts to be recorded")
+// Synthetic material tests verify prerequisites. These are not clinical golden cases.
+func TestAllCriteriaRequireIndependentVerifiedMaterial(t *testing.T) {
+	e := a.NewEvaluator(nil)
+	src := evidence.Source{ID: "S", ValidationStatus: evidence.ValidationVerified, IdentifierValid: true, RecordExists: true, ObjectMatched: true, MaterialVerified: true}
+	for code, def := range a.CanonicalCriteria {
+		t.Run(string(code), func(t *testing.T) {
+			facts := map[string]bool{}
+			for _, f := range a.RequiredFacts[code] {
+				facts[f] = true
+			}
+			crit := a.AppliedCriterion{Code: code, Direction: def.Direction, EvaluatedStrength: def.DefaultStrength, Status: a.CriterionStatusMet, SourceIDs: []string{"S"}, Facts: facts}
+			frequency := .001
+			if code == a.CodeBA1 || code == a.CodeBS1 {
+				frequency = .1
+			}
+			evaluate := func(s []evidence.Source) a.EvaluationOutput {
+				return e.EvaluateEvidence(a.SNVVariantInput{AlleleFrequency: &frequency}, a.ClinicalContextInput{}, []a.AppliedCriterion{crit}, s)
+			}
+			if len(evaluate([]evidence.Source{src}).AppliedCriteria) != 1 {
+				t.Fatal("complete material rejected")
+			}
+			if code == a.CodePM2 || code == a.CodeBA1 || code == a.CodeBS1 {
+				if missing := e.EvaluateEvidence(a.SNVVariantInput{}, a.ClinicalContextInput{}, []a.AppliedCriterion{crit}, []evidence.Source{src}); len(missing.AppliedCriteria) != 0 {
+					t.Fatal("missing AF accepted despite alleged fact")
+				}
+			}
+			if len(evaluate(nil).AppliedCriteria) != 0 {
+				t.Fatal("missing source accepted")
+			}
+			broken := src
+			broken.MaterialVerified = false
+			if len(evaluate([]evidence.Source{broken}).AppliedCriteria) != 0 {
+				t.Fatal("unverified material accepted")
+			}
+			for _, f := range a.RequiredFacts[code] {
+				facts[f] = false
+				if len(evaluate([]evidence.Source{src}).AppliedCriteria) != 0 {
+					t.Fatalf("missing %s accepted", f)
+				}
+				facts[f] = true
+			}
+		})
 	}
 }

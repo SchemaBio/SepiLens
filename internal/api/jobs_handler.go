@@ -1,21 +1,25 @@
 package api
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/pzweuj/sepilens/internal/evidence"
 	"github.com/pzweuj/sepilens/internal/jobs"
+	"github.com/pzweuj/sepilens/internal/workflow"
 )
 
 type EvaluationResultPayload struct {
+	Revision           int             `json:"revision"`
+	RulesetHash        string          `json:"ruleset_hash"`
+	DatasetHash        string          `json:"dataset_hash"`
+	ProfileVersion     int             `json:"profile_version,omitempty"`
+	PromptVersion      string          `json:"prompt_version"`
+	ReviewStatus       string          `json:"review_status"`
 	EvaluationID       string          `json:"evaluation_id"`
 	EngineID           string          `json:"engine_id"`
 	ResultKind         string          `json:"result_kind"`
@@ -46,143 +50,37 @@ type ResourceUsage struct {
 }
 
 type AddReviewRequest struct {
-	ReviewerID             string `json:"reviewer_id"`
-	Decision               string `json:"decision"`
-	HumanOverride          bool   `json:"human_override"`
-	ReviewedClassification string `json:"reviewed_classification"`
-	Reason                 string `json:"reason"`
+	Revision               int                     `json:"revision"`
+	Corrections            []evidence.EvidenceItem `json:"corrections,omitempty"`
+	VerifiedSources        []string                `json:"verified_sources,omitempty"`
+	ReviewerID             string                  `json:"reviewer_id"`
+	Decision               string                  `json:"decision"`
+	HumanOverride          bool                    `json:"human_override"`
+	ReviewedClassification string                  `json:"reviewed_classification"`
+	Reason                 string                  `json:"reason"`
 }
 
 func (s *Server) dispatchSimulationJob(w http.ResponseWriter, r *http.Request, engineID string, bodyBytes []byte) {
-	ctx := r.Context()
-	tenantID := GetTenantID(ctx)
-	idempotencyKey := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
-	bodyHash := computeBodyHash(bodyBytes)
-
-	if idempotencyKey != "" {
-		existing, err := s.store.FindByIdempotency(ctx, tenantID, idempotencyKey)
-		if err != nil {
-			WriteError(w, r, http.StatusInternalServerError, ErrCodeInternalError, "failed to check idempotency", true)
-			return
-		}
-		if existing != nil {
-			if existing.RequestHash != bodyHash {
-				WriteError(w, r, http.StatusConflict, ErrCodeIdempotencyConflict, "idempotency key matches a previous request with different parameters", false)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json; charset=utf-8")
-			w.WriteHeader(http.StatusOK)
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"job_id":      existing.JobID,
-				"status":      existing.Status,
-				"result_kind": existing.ResultKind,
-				"is_replayed": true,
-			})
-			return
-		}
-	}
-
-	var b [8]byte
-	_, _ = rand.Read(b[:])
-	jobID := "job-" + hex.EncodeToString(b[:])
-
-	newJob := jobs.Job{
-		JobID:          jobID,
-		TenantID:       tenantID,
-		EngineID:       engineID,
-		Status:         jobs.StatusQueued,
-		ResultKind:     "simulation",
-		RequestHash:    bodyHash,
-		IdempotencyKey: idempotencyKey,
-		Stage:          "queued",
-		Progress:       0,
-	}
-
-	if err := s.store.CreateJob(ctx, newJob); err != nil {
-		WriteError(w, r, http.StatusInternalServerError, ErrCodeInternalError, "failed to create job", true)
+	if s.queue == nil {
+		WriteError(w, r, 503, ErrCodeInternalError, "worker unavailable", true)
 		return
 	}
-
-	// Produce events and advance simulation to completion
-	_, _ = s.store.AppendEvent(ctx, jobID, "queued", `{"info":"job placed in queue"}`)
-	_, _ = s.store.AppendEvent(ctx, jobID, "running", `{"step":"simulated evaluation execution"}`)
-
-	simResult := EvaluationResultPayload{
-		EvaluationID:       jobID,
-		EngineID:           engineID,
-		ResultKind:         "simulation",
-		ClinicalUse:        "forbidden",
-		DeliveryStatus:     "delivered",
-		SettlementEligible: true,
-		AgentProposal:      nil,
-		RuleEngineResult:   nil,
-		ReviewerDecision:   nil,
-		ReviewRequired:     true,
-		Usage: ResourceUsage{
-			InputTokens:  0,
-			OutputTokens: 0,
-			WebSearches:  0,
-			DurationMS:   15,
-		},
+	// Raw HPO text is transient; only its digest is used for idempotency.
+	payload, _ := json.Marshal(envelope{DatasetHash: s.datasetHash()})
+	j, replay, err := s.queue.Submit(r.Context(), GetTenantID(r.Context()), engineID, "simulation", r.Header.Get("Idempotency-Key"), computeBodyHash(bodyBytes), payload)
+	if err != nil {
+		status := 500
+		if errors.Is(err, workflow.ErrConflict) {
+			status = 409
+		}
+		WriteError(w, r, status, ErrCodeIdempotencyConflict, "task admission failed", false)
+		return
 	}
-	resBytes, _ := json.Marshal(simResult)
-	resStr := string(resBytes)
-
-	_ = s.store.UpdateJobStatus(ctx, jobID, jobs.StatusSucceeded, "completed", 100, &resStr, nil)
-	_, _ = s.store.AppendEvent(ctx, jobID, "completed", `{"status":"succeeded"}`)
-
-	// If evidence store is available, persist initial evidence snapshot
-	if s.evidenceStore != nil {
-		sources := []evidence.Source{
-			{
-				ID:               "SRC-CLINVAR-" + jobID,
-				Type:             evidence.SourceTypeClinVar,
-				Title:            "ClinVar Variant Assessment Reference",
-				ClinVarID:        "VCV0000001",
-				ValidationStatus: evidence.ValidationVerified,
-				RetrievedAt:      time.Now().UTC().Format(time.RFC3339),
-			},
-		}
-		items := []evidence.EvidenceItem{
-			{
-				ID:               "EVI-SIM-01",
-				EngineID:         engineID,
-				RuleCode:         "SIM",
-				Status:           evidence.StatusProposedMet,
-				Reason:           "Simulated candidate evidence placeholder",
-				SourceIDs:        []string{"SRC-CLINVAR-" + jobID},
-				SourceValidation: "verified",
-				ReviewRequired:   true,
-			},
-		}
-		prov := evidence.ProvenanceMetadata{
-			RetrievalMode:      "targeted",
-			RetrievalTimestamp: time.Now().UTC().Format(time.RFC3339),
-			TokensUsed:         0,
-			RequestsCount:      1,
-			DurationMS:         15,
-		}
-		hash, _ := evidence.ComputeSnapshotHash(sources, items, prov)
-		snapshot := evidence.EvidenceSnapshot{
-			SnapshotID:   "snp-" + jobID,
-			EvaluationID: jobID,
-			TenantID:     tenantID,
-			Hash:         hash,
-			Sources:      sources,
-			Items:        items,
-			Provenance:   prov,
-			CreatedAt:    time.Now().UTC(),
-		}
-		_ = s.evidenceStore.SaveSnapshot(ctx, snapshot)
+	status := 202
+	if replay {
+		status = 200
 	}
-
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(http.StatusAccepted)
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"job_id":      jobID,
-		"status":      "succeeded",
-		"result_kind": "simulation",
-	})
+	writeJSON(w, status, map[string]any{"job_id": j.JobID, "status": j.Status, "result_kind": j.ResultKind, "is_replayed": replay})
 }
 
 func (s *Server) handleGetJobLogic(w http.ResponseWriter, r *http.Request) {
@@ -204,7 +102,7 @@ func (s *Server) handleGetJobLogic(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(j)
 }
 
-func (s *Server) handleJobEventsLogic(w http.ResponseWriter, r *http.Request) {
+func (s *Server) legacyJobEvents(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	tenantID := GetTenantID(ctx)
 	jobID := chi.URLParam(r, "job_id")
@@ -264,7 +162,12 @@ func (s *Server) handleJobResultLogic(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if j.Status != jobs.StatusSucceeded {
+		status := http.StatusAccepted
+		if j.Status == jobs.StatusFailed {
+			status = http.StatusConflict
+		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(status)
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"job_id": j.JobID,
 			"status": j.Status,
@@ -274,6 +177,10 @@ func (s *Server) handleJobResultLogic(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var res EvaluationResultPayload
+	if j.ResultKind == "legacy_unverified" {
+		writeJSON(w, 200, EvaluationResultPayload{EvaluationID: j.JobID, EngineID: j.EngineID, ResultKind: "legacy_unverified", ClinicalUse: "forbidden", DeliveryStatus: "historical", ReviewRequired: true, ReviewStatus: "unverified", AgentProposal: map[string]any{"historical_result": json.RawMessage(j.ResultJSON)}})
+		return
+	}
 	if err := json.Unmarshal([]byte(j.ResultJSON), &res); err != nil {
 		WriteError(w, r, http.StatusInternalServerError, ErrCodeInternalError, "corrupted result payload", false)
 		return
@@ -283,13 +190,17 @@ func (s *Server) handleJobResultLogic(w http.ResponseWriter, r *http.Request) {
 	reviews, err := s.store.GetReviews(ctx, tenantID, jobID)
 	if err == nil && len(reviews) > 0 {
 		latest := reviews[len(reviews)-1]
-		res.ReviewerDecision = &ReviewDecision{
-			ReviewerID:     latest.ReviewerID,
-			Decision:       latest.Decision,
-			Reason:         latest.Reason,
-			HumanOverride:  latest.HumanOverride,
-			Classification: latest.ReviewedClassification,
-			ReviewedAt:     latest.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		if latest.Decision != "revise_evidence" && latest.ResultVersion == res.Revision {
+			res.ReviewerDecision = &ReviewDecision{
+				ReviewerID:     latest.ReviewerID,
+				Decision:       latest.Decision,
+				Reason:         latest.Reason,
+				HumanOverride:  latest.HumanOverride,
+				Classification: latest.ReviewedClassification,
+				ReviewedAt:     latest.CreatedAt.Format("2006-01-02T15:04:05Z"),
+			}
+			res.ReviewStatus = latest.Decision
+			res.ReviewRequired = latest.Decision == "reject"
 		}
 	}
 
@@ -321,6 +232,9 @@ func (s *Server) handleCancelJobLogic(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAddReviewLogic(w http.ResponseWriter, r *http.Request) {
+	if !requireRole(w, r, "reviewer", "admin") {
+		return
+	}
 	ctx := r.Context()
 	tenantID := GetTenantID(ctx)
 	evalID := chi.URLParam(r, "id")
@@ -336,19 +250,59 @@ func (s *Server) handleAddReviewLogic(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req AddReviewRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		WriteError(w, r, http.StatusBadRequest, ErrCodeBadRequest, "invalid review payload", false)
+	if !decode(w, r, &req) {
+		return
+	}
+	var current EvaluationResultPayload
+	if json.Unmarshal([]byte(j.ResultJSON), &current) != nil {
+		WriteError(w, r, 409, ErrCodeBadRequest, "valid result required", false)
+		return
+	}
+	if req.Revision == 0 {
+		req.Revision = 1
+	}
+	if current.Revision != req.Revision {
+		WriteError(w, r, 409, ErrCodeBadRequest, "result revision changed", false)
 		return
 	}
 
-	if req.ReviewerID == "" {
-		WriteError(w, r, http.StatusBadRequest, ErrCodeBadRequest, "reviewer_id is required", false)
+	p := principal(r)
+	if req.ReviewerID != "" && req.ReviewerID != p.Actor {
+		WriteError(w, r, 403, ErrCodeAuthFailed, "reviewer identity mismatch", false)
+		return
+	}
+	req.ReviewerID = p.Actor
+	if j.Status != jobs.StatusSucceeded {
+		WriteError(w, r, 409, ErrCodeBadRequest, "completed evaluation required", false)
+		return
+	}
+	if req.Decision != "accept_engine_result" && req.Decision != "reject" && req.Decision != "override" && req.Decision != "revise_evidence" {
+		WriteError(w, r, 422, ErrCodeBadRequest, "invalid review decision", false)
+		return
+	}
+	if strings.TrimSpace(req.Reason) == "" {
+		WriteError(w, r, 422, ErrCodeBadRequest, "review reason required", false)
 		return
 	}
 
 	// Medical constraint: In simulation or uncalculated state, rule engine produced no result
 	if req.Decision == "accept_engine_result" {
-		WriteError(w, r, http.StatusConflict, ErrCodeRulesetNotAvailable, "cannot accept rule engine result because rule engine produced no result in this evaluation", false)
+		var res EvaluationResultPayload
+		_ = json.Unmarshal([]byte(j.ResultJSON), &res)
+		if j.ResultKind != "production" || res.RuleEngineResult == nil {
+			WriteError(w, r, 409, ErrCodeRulesetNotAvailable, "valid production rule result required", false)
+			return
+		}
+	}
+	if req.Decision == "override" {
+		req.HumanOverride = true
+	}
+	if req.Decision == "revise_evidence" {
+		s.reviseEvidence(w, r, j, req)
+		return
+	}
+	if req.HumanOverride && !validClassification(req.ReviewedClassification) {
+		WriteError(w, r, 422, ErrCodeBadRequest, "invalid reviewed classification", false)
 		return
 	}
 
@@ -364,6 +318,8 @@ func (s *Server) handleAddReviewLogic(w http.ResponseWriter, r *http.Request) {
 	}
 
 	review := jobs.ReviewRecord{
+		ExpectedUpdatedAt:      j.UpdatedAt,
+		ResultVersion:          req.Revision,
 		EvaluationID:           evalID,
 		TenantID:               tenantID,
 		ReviewerID:             req.ReviewerID,
@@ -374,6 +330,10 @@ func (s *Server) handleAddReviewLogic(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.store.AddReview(ctx, review); err != nil {
+		if errors.Is(err, jobs.ErrJobAlreadyFinished) {
+			WriteError(w, r, 409, ErrCodeBadRequest, "result revision changed", false)
+			return
+		}
 		WriteError(w, r, http.StatusInternalServerError, ErrCodeInternalError, "failed to store review", true)
 		return
 	}

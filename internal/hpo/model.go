@@ -1,11 +1,14 @@
 package hpo
 
 type Term struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Definition   string `json:"definition"`
-	NameCN       string `json:"name_cn"`
-	DefinitionCN string `json:"definition_cn"`
+	Obsolete     bool     `json:"obsolete,omitempty"`
+	ReplacedBy   string   `json:"replaced_by,omitempty"`
+	Synonyms     []string `json:"synonyms,omitempty"`
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Definition   string   `json:"definition"`
+	NameCN       string   `json:"name_cn"`
+	DefinitionCN string   `json:"definition_cn"`
 }
 
 type PreprocessResult struct {
@@ -45,6 +48,9 @@ const (
 )
 
 type ExtractionItem struct {
+	SpanStart       int        `json:"span_start"`
+	SpanEnd         int        `json:"span_end"`
+	Source          string     `json:"source"`
 	HPO             string     `json:"hpo"`
 	Name            string     `json:"name"`
 	NameCN          string     `json:"name_cn"`
@@ -58,6 +64,8 @@ type ExtractionItem struct {
 }
 
 type ExtractionResult struct {
+	ExecutionMode  string           `json:"execution_mode"`
+	Degraded       bool             `json:"degraded"`
 	Terms          []ExtractionItem `json:"terms"`
 	Preprocess     PreprocessResult `json:"preprocess"`
 	CandidateCount int              `json:"candidate_count"`

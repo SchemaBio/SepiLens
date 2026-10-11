@@ -1,0 +1,1597 @@
+{
+  "approval": null,
+  "case_matrix": [
+    {
+      "case_ids": [],
+      "code": "1A",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "1A",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "1A",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "1A",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "1A",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "1A",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "1B",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "1B",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "1B",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "1B",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "1B",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "1B",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2A",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2A",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2A",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2A",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2A",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2A",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2B",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2B",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2B",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2B",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2B",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2B",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2C-1",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2C-1",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2C-1",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2C-1",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2C-1",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2C-1",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2C-2",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2C-2",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2C-2",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2C-2",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2C-2",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2C-2",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2D-1",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2D-1",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2D-1",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2D-1",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2D-1",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2D-1",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2D-2",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2D-2",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2D-2",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2D-2",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2D-2",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2D-2",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2D-3",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2D-3",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2D-3",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2D-3",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2D-3",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2D-3",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2D-4",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2D-4",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2D-4",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2D-4",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2D-4",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2D-4",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-Moderate",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-Moderate",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-Moderate",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-Moderate",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-Moderate",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-Moderate",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-NA",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-NA",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-NA",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-NA",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-NA",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-NA",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-PVS1",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-PVS1",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-PVS1",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-PVS1",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-PVS1",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-PVS1",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-Strong",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-Strong",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-Strong",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-Strong",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-Strong",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-Strong",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-Supporting",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-Supporting",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-Supporting",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-Supporting",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-Supporting",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2E-Supporting",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2F",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2F",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2F",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2F",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2F",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2F",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2G",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2G",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2G",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2G",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2G",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2G",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2H",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2H",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2H",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2H",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2H",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "2H",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "3A",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "3A",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "3A",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "3A",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "3A",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "3A",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "3B",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "3B",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "3B",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "3B",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "3B",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "3B",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "3C",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "3C",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "3C",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "3C",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "3C",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "3C",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4A",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4A",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4A",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4A",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4A",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4A",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4B",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4B",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4B",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4B",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4B",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4B",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4C",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4C",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4C",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4C",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4C",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4C",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4D",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4D",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4D",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4D",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4D",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4D",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4E",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4E",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4E",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4E",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4E",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4E",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4F",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4F",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4F",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4F",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4F",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4F",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4G",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4G",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4G",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4G",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4G",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4G",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4H",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4H",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4H",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4H",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4H",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4H",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4I",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4I",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4I",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4I",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4I",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4I",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4J",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4J",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4J",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4J",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4J",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4J",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4K",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4K",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4K",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4K",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4K",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4K",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4L",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4L",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4L",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4L",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4L",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4L",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4M",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4M",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4M",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4M",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4M",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4M",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4N",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4N",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4N",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4N",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4N",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4N",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4O",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4O",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4O",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4O",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4O",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "4O",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5A",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5A",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5A",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5A",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5A",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5A",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5B",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5B",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5B",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5B",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5B",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5B",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5C",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5C",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5C",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5C",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5C",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5C",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5D",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5D",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5D",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5D",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5D",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5D",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5E",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5E",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5E",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5E",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5E",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5E",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5F",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5F",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5F",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5F",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5F",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5F",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5G",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5G",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5G",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5G",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5G",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5G",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5H",
+      "kind": "positive",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5H",
+      "kind": "negative",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5H",
+      "kind": "missing",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5H",
+      "kind": "boundary",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5H",
+      "kind": "mutual_exclusion",
+      "status": "pending_independent_validation"
+    },
+    {
+      "case_ids": [],
+      "code": "5H",
+      "kind": "cap",
+      "status": "pending_independent_validation"
+    }
+  ],
+  "clinical_status": "disabled",
+  "engine_id": "cnv_loss_2020",
+  "experimental_available": false,
+  "ruleset_hash": "f73d8e8027cd9be7fc88c194d322d8cf79da00eb1ee627adcdcda41b06e8550e",
+  "scope": "cnv_loss; constitutional germline; GRCh37/GRCh38",
+  "source": "https://cnvcalc.clinicalgenome.org/cnvcalc/cnv-loss",
+  "validation_report_hash": null,
+  "version": "2020"
+}

@@ -37,6 +37,10 @@ func LoadIndex(termsPath, namesPath string) (*Index, error) {
 	if err := json.Unmarshal(termsData, &rawMap); err != nil {
 		return nil, fmt.Errorf("unmarshal hpo terms: %w", err)
 	}
+	return buildIndex(rawMap, namesPath), nil
+}
+func NewIndex(terms map[string]Term) *Index { return buildIndex(terms, "") }
+func buildIndex(rawMap map[string]Term, namesPath string) *Index {
 
 	idx := &Index{
 		terms:          rawMap,
@@ -49,6 +53,12 @@ func LoadIndex(termsPath, namesPath string) (*Index, error) {
 	for id, t := range rawMap {
 		normID := strings.ToLower(id)
 		idx.byID[normID] = t
+		if t.Obsolete {
+			continue
+		}
+		for _, syn := range t.Synonyms {
+			idx.addKeywordIndex(syn, id)
+		}
 
 		idx.addPrefixIndex(t.Name, id, idx.byNamePrefix)
 		idx.addPrefixIndex(t.NameCN, id, idx.byNameCnPrefix)
@@ -68,7 +78,7 @@ func LoadIndex(termsPath, namesPath string) (*Index, error) {
 		}
 	}
 
-	return idx, nil
+	return idx
 }
 
 func LoadDefaultIndex(knowledgeDir string) (*Index, error) {
@@ -87,6 +97,15 @@ func (idx *Index) GetTerm(id string) (Term, bool) {
 	idx.mu.RLock()
 	defer idx.mu.RUnlock()
 	t, ok := idx.byID[strings.ToLower(strings.TrimSpace(id))]
+	if ok && t.Obsolete {
+		if t.ReplacedBy == "" {
+			return Term{}, false
+		}
+		t, ok = idx.byID[strings.ToLower(t.ReplacedBy)]
+		if t.Obsolete {
+			return Term{}, false
+		}
+	}
 	return t, ok
 }
 

@@ -1,12 +1,5 @@
-# ClinGen/ACMG 2020 CNV Loss 规则状态
+# CNV Loss 2020
 
-- **引擎标识**：`cnv_loss_2020`
-- **参考规范**：Riggs et al. 2020 (Technical standards for the interpretation and reporting of constitutional copy-number variants)
-- **在线计算器**：https://cnvcalc.clinicalgenome.org/cnvcalc/cnv-loss
-- **启用状态**：`enabled` (`enabled: true`)
-- **适用范围**：仅限 Constitutional (胚系) CNV 缺失，明确拒绝体细胞肿瘤变异。
-- **实现架构**：
-  1. 完整实现 Section 1–5 缺失专项条款及上限封顶逻辑；
-  2. 采用定点整数（百分位，100 = 1.00）精确计分，无二进制浮点误差；
-  3. 与 `cnv_gain_2020` 引擎保持独立隔离，分项上限（Section 2: ±1.00; Section 3: +0.90; Section 4: -1.00..+0.90; Section 5: ±0.90）独立生效；
-  4. 支持 ClinGen 官方计算器黄金用例 100% 一致性自动化比对。
+状态：disabled，等待独立黄金验证和专家批准。独立 rubric、整数汇总、范围/上限/互斥及 assembly 注释已实现。完整官方数据覆盖、复杂基因内事件和逐条专业对照尚待验收；不存在“100% 官方黄金一致性”通过声明。
+
+实际规则和 pending 案例矩阵见 `../packages/cnv_loss_2020/`。只有已核验来源和完整适用事实进入计算。启用条件见 `../../docs/RULESET_POLICY.md`。

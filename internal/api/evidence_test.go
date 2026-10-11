@@ -1,82 +1,44 @@
 package api_test
 
 import (
-	"bytes"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
+	"strings"
 	"testing"
-
-	"github.com/pzweuj/sepilens/internal/api"
-	"github.com/pzweuj/sepilens/internal/evidence"
 )
 
-func TestServer_GetEvidenceSnapshot(t *testing.T) {
-	srv, teardown := setupTestServer(t, true) // simulation=true
-	defer teardown()
-	router := srv.Router()
-
-	authHeader := "Bearer test-api-key"
-
-	// 1. Create a simulated evaluation job
-	snvPayload := map[string]any{
-		"engine_id": "acmg_amp_2015",
-		"variant": map[string]any{
-			"assembly": "GRCh38",
-			"chrom":    "chr7",
-			"pos":      117199644,
-			"ref":      "ATCT",
-			"alt":      "A",
-			"gene":     "CFTR",
-		},
-		"clinical_context": map[string]any{
-			"disease_id":  "MONDO:0009061",
-			"inheritance": "AR",
-		},
+func TestEvidenceSnapshotAndReviewRoles(t *testing.T) {
+	s, close := setupTestServer(t, true)
+	defer close()
+	h := s.Router()
+	id := accepted(t, h, snvInput, "")
+	_ = result(t, h, id)
+	w := request(h, "GET", "/v1/evaluations/"+id+"/evidence", "", "test-api-key", "")
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "hash") {
+		t.Fatal("snapshot missing", w.Code, w.Body.String())
 	}
-	bodyBytes, _ := json.Marshal(snvPayload)
-
-	reqCreate := httptest.NewRequest("POST", "/v1/variants/snv/evaluations", bytes.NewReader(bodyBytes))
-	reqCreate.Header.Set("Authorization", authHeader)
-	recCreate := httptest.NewRecorder()
-	router.ServeHTTP(recCreate, reqCreate)
-	if recCreate.Code != http.StatusAccepted {
-		t.Fatalf("expected 202 Accepted, got %d: %s", recCreate.Code, recCreate.Body.String())
+	path := "/v1/evaluations/" + id + "/reviews"
+	body := `{"decision":"reject","reason":"synthetic test"}`
+	if request(h, "POST", path, body, "test-api-key", "").Code != 403 {
+		t.Fatal("submitter reviewed")
 	}
-
-	var createResp map[string]any
-	_ = json.Unmarshal(recCreate.Body.Bytes(), &createResp)
-	jobID, _ := createResp["job_id"].(string)
-
-	// 2. Query evidence snapshot for this job
-	reqEvi := httptest.NewRequest("GET", "/v1/evaluations/"+jobID+"/evidence", nil)
-	reqEvi.Header.Set("Authorization", authHeader)
-	recEvi := httptest.NewRecorder()
-	router.ServeHTTP(recEvi, reqEvi)
-	if recEvi.Code != http.StatusOK {
-		t.Fatalf("expected 200 OK for evidence snapshot, got %d: %s", recEvi.Code, recEvi.Body.String())
+	if request(h, "POST", path, `{"reviewer_id":"admin","decision":"reject","reason":"test"}`, "review-key", "").Code != 403 {
+		t.Fatal("reviewer impersonation")
 	}
-
-	var snp evidence.EvidenceSnapshot
-	if err := json.Unmarshal(recEvi.Body.Bytes(), &snp); err != nil {
-		t.Fatalf("failed to parse evidence snapshot: %v", err)
+	if request(h, "POST", path, `{"decision":"accept_engine_result","reason":"test"}`, "review-key", "").Code != 409 {
+		t.Fatal("simulation accepted")
 	}
-
-	if snp.EvaluationID != jobID || snp.Hash == "" || len(snp.Sources) == 0 {
-		t.Fatalf("unexpected snapshot contents: %+v", snp)
+	if request(h, "POST", path, body, "review-key", "").Code != 201 {
+		t.Fatal("rejection failed")
 	}
-
-	// 3. Query non-existent evaluation -> 404
-	reqNonExistent := httptest.NewRequest("GET", "/v1/evaluations/non-existent-id/evidence", nil)
-	reqNonExistent.Header.Set("Authorization", authHeader)
-	recNonExistent := httptest.NewRecorder()
-	router.ServeHTTP(recNonExistent, reqNonExistent)
-	if recNonExistent.Code != http.StatusNotFound {
-		t.Fatalf("expected 404 for non-existent evaluation evidence, got %d", recNonExistent.Code)
+	if request(h, "GET", "/v1/jobs/"+id+"/audit", "", "admin-key", "").Code != 200 {
+		t.Fatal("audit export failed")
 	}
-	var errResp api.ErrorEnvelope
-	_ = json.Unmarshal(recNonExistent.Body.Bytes(), &errResp)
-	if errResp.Error.Code != api.ErrCodeJobNotFound {
-		t.Fatalf("expected JOB_NOT_FOUND code, got %s", errResp.Error.Code)
+	if request(h, "DELETE", "/v1/jobs/"+id, "", "other-key", "").Code != 404 {
+		t.Fatal("cross tenant deletion")
+	}
+	if request(h, "DELETE", "/v1/jobs/"+id, "", "admin-key", "").Code != 204 {
+		t.Fatal("deletion failed")
+	}
+	if request(h, "GET", "/v1/jobs/"+id, "", "test-api-key", "").Code != 404 {
+		t.Fatal("deleted job retained")
 	}
 }
