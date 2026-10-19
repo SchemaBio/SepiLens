@@ -62,7 +62,7 @@ func (e *Evaluator) EvaluateEvidence(v SNVVariantInput, c ClinicalContextInput, 
 		def, exists := CanonicalCriteria[crit.Code]
 		valid := exists && def.Direction == crit.Direction && len(crit.SourceIDs) > 0
 		// Baseline strengths cannot be upgraded by a model or caller.
-		valid = valid && crit.EvaluatedStrength == def.DefaultStrength
+		valid = valid && AllowedStrength(crit.Code, crit.EvaluatedStrength)
 		for _, fact := range RequiredFacts[crit.Code] {
 			valid = valid && crit.Facts[fact]
 		}

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- 离线注释索引、HPOA 表型评分与 PP4 十项门禁；新增 `/v1/phenotype/match`。
+- v2 加密证据快照及兼容迁移 007；来源防伪、过期门禁和 PVS1 前提修复。
+- 双协议 AI 多轮工具、受控条款覆盖、服务端重算与失败基线保存；默认关闭。
+- 人工修订保留有效条款和不可变历史，扩展审核结算、审计及双平台验证。
+
 - 结构化注释与表型驱动的 ACMG 评估设计稿，见 `docs/ASSESSMENT_ARCHITECTURE.md`。
 - 版本号改为单一来源：构建注入 `main.version`，由 `/v1/capabilities` 返回。
 

@@ -8,6 +8,13 @@ import (
 type ErrorCode string
 
 const (
+	ErrCodeAnnotationUnavailable      ErrorCode = "ANNOTATION_UNAVAILABLE"
+	ErrCodeAnnotationStale            ErrorCode = "ANNOTATION_STALE"
+	ErrCodePhenotypeUnverified        ErrorCode = "PHENOTYPE_UNVERIFIED"
+	ErrCodePhenotypeInconsistent      ErrorCode = "PHENOTYPE_INCONSISTENT"
+	ErrCodeGeneDiseaseRefuted         ErrorCode = "GENE_DISEASE_REFUTED"
+	ErrCodeAIToolBudgetExceeded       ErrorCode = "AI_TOOL_BUDGET_EXCEEDED"
+	ErrCodeAIOutputInvalid            ErrorCode = "AI_OUTPUT_INVALID"
 	ErrCodeAuthFailed                 ErrorCode = "AUTH_FAILED"
 	ErrCodeUnknownEngine              ErrorCode = "UNKNOWN_ENGINE"
 	ErrCodeRulesetNotAvailable        ErrorCode = "RULESET_NOT_AVAILABLE"

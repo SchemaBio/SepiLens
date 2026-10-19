@@ -29,6 +29,9 @@ var reviewVersionsSQL string
 //go:embed migrations/006_legacy_evidence.sql
 var legacyEvidenceSQL string
 
+//go:embed migrations/007_snapshot_extensions.sql
+var snapshotExtensionsSQL string
+
 func Open(dbPath string) (*sql.DB, error) {
 	if dir := filepath.Dir(dbPath); dir != "" && dir != "." {
 		if err := os.MkdirAll(dir, 0755); err != nil {
@@ -71,7 +74,7 @@ func Open(dbPath string) (*sql.DB, error) {
 			}
 		}
 	}
-	for i, migration := range []string{initSQL, evidenceSQL, runtimeSQL, encryptionSQL, reviewVersionsSQL, legacyEvidenceSQL} {
+	for i, migration := range []string{initSQL, evidenceSQL, runtimeSQL, encryptionSQL, reviewVersionsSQL, legacyEvidenceSQL, snapshotExtensionsSQL} {
 		if i+1 <= current {
 			continue
 		}

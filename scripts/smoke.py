@@ -102,6 +102,12 @@ try:
     expect("auth_required", call("GET", "/v1/capabilities", token=None)[0] == 401)
     code, caps = call("GET", "/v1/capabilities")
     expect("five_disabled_engines", code == 200 and len(caps["engines"]) == 5 and all(not x["enabled"] for x in caps["engines"]))
+    code, sources = call("GET", "/v1/annotations/sources")
+    expect("no_implicit_annotation_sources", code == 200 and len(sources["sources"]) == 5 and all(not s["enabled"] for s in sources["sources"]))
+    annotation = {"engine_id":"acmg_amp_2015", "variant":body["variant"], "annotations":{"source":"sepilens_snapshot", "gnomad":{"version":"synthetic", "status":"found", "faf95":0.00001, "allele_number":100000, "coverage_adequate":True}}}
+    code, normalized = call("POST", "/v1/annotations/validate", annotation)
+    expect("annotation_source_claim_downgraded", code == 200 and normalized["annotations"]["source"] == "caller_supplied" and normalized["annotations"]["gnomad"]["source"] == "caller_supplied")
+    expect("phenotype_requires_locked_graph_and_hpoa", call("POST", "/v1/phenotype/match", {"gene":"TEST","disease_id":"OMIM:1","inheritance":"AD","phenotype":{"hpo_terms":[{"id":"HP:0001945","polarity":"present"}],"source":"caller_supplied"}})[0] == 409)
     expect("ready", call("GET", "/readyz", token=None)[0] == 200)
     clinical = json.loads(json.dumps(body)); clinical["clinical_context"]["variant_origin"] = "germline_confirmed"
     expect("clinical_gate", call("POST", "/v1/variants/snv/evaluations", clinical)[0] == 409)

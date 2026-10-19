@@ -39,7 +39,7 @@ func (s *SQLiteStore) SaveSnapshot(ctx context.Context, snapshot EvidenceSnapsho
 	return s.SaveTx(ctx, s.db, snapshot)
 }
 func (s *SQLiteStore) SaveTx(ctx context.Context, exec Executor, snapshot EvidenceSnapshot) error {
-	h, err := ComputeSnapshotHash(snapshot.Sources, snapshot.Items, snapshot.Provenance)
+	h, err := SnapshotHash(snapshot)
 	if err != nil || h != snapshot.Hash {
 		return errors.New("evidence snapshot hash mismatch")
 	}
@@ -63,12 +63,21 @@ func (s *SQLiteStore) SaveTx(ctx context.Context, exec Executor, snapshot Eviden
 
 	query := `INSERT INTO evidence_snapshots (
 		snapshot_id, evaluation_id, tenant_id, hash,
-		sources_json, items_json, provenance_json, created_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		sources_json, items_json, provenance_json, created_at, extensions_json
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	a, b, c := string(sourcesJSON), string(itemsJSON), string(provenanceJSON)
+	extensions, err := json.Marshal(snapshot.SnapshotExtensions)
+	if err != nil {
+		return err
+	}
+	x := string(extensions)
 	if s.cipher != nil {
 		binding := snapshot.TenantID + ":" + snapshot.SnapshotID
+		x, err = s.cipher.Seal(x, binding+":extensions")
+		if err != nil {
+			return err
+		}
 		a, err = s.cipher.Seal(a, binding+":sources")
 		if err != nil {
 			return err
@@ -87,6 +96,7 @@ func (s *SQLiteStore) SaveTx(ctx context.Context, exec Executor, snapshot Eviden
 		snapshot.SnapshotID, snapshot.EvaluationID, snapshot.TenantID, snapshot.Hash,
 		a, b, c,
 		createdAt.Format(time.RFC3339Nano),
+		x,
 	)
 	if err != nil {
 		return fmt.Errorf("upsert snapshot: %w", err)
@@ -99,18 +109,19 @@ func (s *SQLiteStore) GetSnapshot(ctx context.Context, tenantID, evaluationID st
 }
 func (s *SQLiteStore) getSnapshot(ctx context.Context, tenantID, evaluationID, snapshotID string) (*EvidenceSnapshot, error) {
 	query := `SELECT legacy_unverified,snapshot_id, evaluation_id, tenant_id, hash,
-		sources_json, items_json, provenance_json, created_at
+		sources_json, items_json, provenance_json, created_at, COALESCE(extensions_json,'')
 		FROM evidence_snapshots
 		WHERE tenant_id = ? AND evaluation_id = ? AND (?='' OR snapshot_id=?)
 		ORDER BY created_at DESC LIMIT 1`
 
 	var snp EvidenceSnapshot
 	var sourcesStr, itemsStr, provStr, createdStr string
+	var extStr string
 
 	err := s.db.QueryRowContext(ctx, query, tenantID, evaluationID, snapshotID, snapshotID).Scan(
 		&snp.LegacyUnverified,
 		&snp.SnapshotID, &snp.EvaluationID, &snp.TenantID, &snp.Hash,
-		&sourcesStr, &itemsStr, &provStr, &createdStr,
+		&sourcesStr, &itemsStr, &provStr, &createdStr, &extStr,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrSnapshotNotFound
@@ -120,6 +131,12 @@ func (s *SQLiteStore) getSnapshot(ctx context.Context, tenantID, evaluationID, s
 	}
 	if s.cipher != nil {
 		binding := tenantID + ":" + snp.SnapshotID
+		if extStr != "" {
+			extStr, err = s.cipher.Open(extStr, binding+":extensions")
+			if err != nil {
+				return nil, err
+			}
+		}
 		sourcesStr, err = s.cipher.Open(sourcesStr, binding+":sources")
 		if err != nil {
 			return nil, err
@@ -143,6 +160,11 @@ func (s *SQLiteStore) getSnapshot(ctx context.Context, tenantID, evaluationID, s
 	if err := json.Unmarshal([]byte(provStr), &snp.Provenance); err != nil {
 		return nil, fmt.Errorf("unmarshal provenance: %w", err)
 	}
+	if extStr != "" {
+		if err := json.Unmarshal([]byte(extStr), &snp.SnapshotExtensions); err != nil {
+			return nil, err
+		}
+	}
 	snp.CreatedAt, _ = time.Parse(time.RFC3339Nano, createdStr)
 	if snp.LegacyUnverified {
 		for i := range snp.Sources {
@@ -160,7 +182,7 @@ func (s *SQLiteStore) getSnapshot(ctx context.Context, tenantID, evaluationID, s
 		}
 		return &snp, nil
 	}
-	hash, err := ComputeSnapshotHash(snp.Sources, snp.Items, snp.Provenance)
+	hash, err := SnapshotHash(snp)
 	if err != nil || hash != snp.Hash {
 		return nil, errors.New("evidence snapshot integrity failed")
 	}

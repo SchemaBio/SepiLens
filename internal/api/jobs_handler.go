@@ -14,6 +14,8 @@ import (
 )
 
 type EvaluationResultPayload struct {
+	LocalBaseline      any             `json:"local_baseline,omitempty"`
+	FailureCode        string          `json:"failure_code,omitempty"`
 	Revision           int             `json:"revision"`
 	RulesetHash        string          `json:"ruleset_hash"`
 	DatasetHash        string          `json:"dataset_hash"`
@@ -161,7 +163,7 @@ func (s *Server) handleJobResultLogic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if j.Status != jobs.StatusSucceeded {
+	if j.Status != jobs.StatusSucceeded && !(j.Status == jobs.StatusFailed && j.ResultJSON != "") {
 		status := http.StatusAccepted
 		if j.Status == jobs.StatusFailed {
 			status = http.StatusConflict
@@ -201,6 +203,11 @@ func (s *Server) handleJobResultLogic(w http.ResponseWriter, r *http.Request) {
 			}
 			res.ReviewStatus = latest.Decision
 			res.ReviewRequired = latest.Decision == "reject"
+			if latest.Decision == "reject" {
+				res.SettlementEligible = false
+			} else if latest.Decision == "accept_engine_result" || latest.Decision == "override" {
+				res.SettlementEligible = s.reviewSettlementEligible(ctx, j, res)
+			}
 		}
 	}
 

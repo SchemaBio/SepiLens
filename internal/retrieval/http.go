@@ -22,6 +22,11 @@ type Budget struct {
 	Last      time.Time
 }
 
+func WithBudget(ctx context.Context, b *Budget) context.Context {
+	return context.WithValue(ctx, budgetKey{}, b)
+}
+func (b *Budget) Count() int { b.mu.Lock(); defer b.mu.Unlock(); return b.Used }
+
 func (b *Budget) Take(ctx context.Context) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()

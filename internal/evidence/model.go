@@ -1,6 +1,7 @@
 package evidence
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -92,6 +93,7 @@ type ProvenanceMetadata struct {
 }
 
 type EvidenceSnapshot struct {
+	SnapshotExtensions
 	LegacyUnverified bool               `json:"legacy_unverified"`
 	SnapshotID       string             `json:"snapshot_id"`
 	EvaluationID     string             `json:"evaluation_id"`
@@ -101,6 +103,52 @@ type EvidenceSnapshot struct {
 	Items            []EvidenceItem     `json:"items"`
 	Provenance       ProvenanceMetadata `json:"provenance"`
 	CreatedAt        time.Time          `json:"created_at"`
+}
+
+// SnapshotExtensions is persisted as one encrypted envelope. V1 hashes are
+// deliberately unchanged; extensions are accepted only with hash version v2.
+type SnapshotExtensions struct {
+	HashVersion string          `json:"hash_version,omitempty"`
+	Annotations json.RawMessage `json:"annotations,omitempty"`
+	Phenotype   json.RawMessage `json:"phenotype,omitempty"`
+	Agent       json.RawMessage `json:"agent,omitempty"`
+	Overrides   json.RawMessage `json:"overrides,omitempty"`
+}
+
+func SnapshotHash(s EvidenceSnapshot) (string, error) {
+	x := s.SnapshotExtensions
+	switch x.HashVersion {
+	case "", "v1":
+		if len(x.Annotations)+len(x.Phenotype)+len(x.Agent)+len(x.Overrides) != 0 {
+			return "", fmt.Errorf("v1 snapshot cannot contain extensions")
+		}
+		return ComputeSnapshotHash(s.Sources, s.Items, s.Provenance)
+	case "v2":
+		payload := struct {
+			canonicalPayload
+			SnapshotExtensions
+		}{canonicalPayload{s.Sources, s.Items, s.Provenance}, x}
+		b, err := json.Marshal(payload)
+		if err != nil {
+			return "", err
+		}
+		// Normalize raw JSON whitespace and key order before hashing, including
+		// after a snapshot has been transported in an indented JSON response.
+		var normalized any
+		d := json.NewDecoder(bytes.NewReader(b))
+		d.UseNumber()
+		if err = d.Decode(&normalized); err != nil {
+			return "", err
+		}
+		b, err = json.Marshal(normalized)
+		if err != nil {
+			return "", err
+		}
+		h := sha256.Sum256(b)
+		return hex.EncodeToString(h[:]), nil
+	default:
+		return "", fmt.Errorf("unsupported snapshot hash version")
+	}
 }
 
 type canonicalPayload struct {

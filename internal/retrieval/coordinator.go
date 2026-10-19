@@ -99,6 +99,10 @@ func (sc *SearchCoordinator) Coordinate(ctx context.Context, q Query) (evidence.
 	var allSources []evidence.Source
 	requestCount := 0
 	budget := &Budget{Max: maxReqs}
+	if shared, ok := ctx.Value(budgetKey{}).(*Budget); ok {
+		budget = shared
+	}
+	initialCount := budget.Count()
 	timeoutCtx = context.WithValue(timeoutCtx, budgetKey{}, budget)
 	var retrievalErrors []error
 
@@ -136,7 +140,7 @@ func (sc *SearchCoordinator) Coordinate(ctx context.Context, q Query) (evidence.
 	}
 
 	wg.Wait()
-	requestCount = budget.Used
+	requestCount = budget.Count() - initialCount
 	sort.SliceStable(allSources, func(i, j int) bool { return allSources[i].ID < allSources[j].ID })
 
 	// Deduplication and sanitation

@@ -51,6 +51,17 @@ func TestPM2RequiresCoverageAndDefaultsToSupporting(t *testing.T) {
 	}
 }
 
+func TestExpiredSnapshotsCannotProduceMetCandidates(t *testing.T) {
+	set := &annotation.Set{ClinVar: &annotation.ClinVar{Record: annotation.Record{Version: "old", Status: annotation.StatusStale}, Classification: "Pathogenic", ReviewStatus: "reviewed_by_expert_panel", OtherPathogenicSameAminoAcid: []string{"known"}, OtherPathogenicSameResidue: []string{"known"}}, AlphaMissense: &annotation.AlphaMissense{Record: annotation.Record{Version: "old", Status: annotation.StatusStale}, Class: "likely_pathogenic", Transcript: "TX"}, Pangolin: &annotation.Pangolin{Record: annotation.Record{Version: "old", Status: annotation.StatusStale}, Interpretation: "splice_altering", Transcript: "TX"}}
+	d := a.Derive(set, a.SNVVariantInput{Consequence: "missense_variant", Transcript: "TX"}, a.ClinicalContextInput{}, a.DeriveOptions{AllowPP5BP6: true})
+	for _, code := range []a.CriterionCode{a.CodePS1, a.CodePM5, a.CodePP5, a.CodePP3} {
+		c, ok := find(d, code)
+		if !ok || c.Status != a.CriterionStatusInsufficientData {
+			t.Fatal("expired data used", c)
+		}
+	}
+}
+
 func TestPM2AndBA1Boundaries(t *testing.T) {
 	cases := []struct {
 		faf     float64

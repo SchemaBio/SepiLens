@@ -15,6 +15,7 @@ var (
 )
 
 type Config struct {
+	AIMode                string
 	MasterKey             string
 	KnowledgeDir          string
 	LLMProtocol           string
@@ -42,6 +43,10 @@ type Principal struct {
 }
 
 func Load() (Config, error) {
+	aiMode := getEnv("SEPILENS_AI_MODE", "disabled")
+	if aiMode != "disabled" && aiMode != "enabled" {
+		return Config{}, errors.New("invalid AI mode")
+	}
 	addr := getEnv("SEPILENS_ADDR", ":8080")
 	dataDir := getEnv("SEPILENS_DATA_DIR", "./data")
 	authMode := strings.ToLower(getEnv("SEPILENS_AUTH_MODE", "required"))
@@ -102,6 +107,7 @@ func Load() (Config, error) {
 	}
 
 	return Config{
+		AIMode:                aiMode,
 		MasterKey:             masterKey,
 		KnowledgeDir:          getEnv("SEPILENS_KNOWLEDGE_DIR", "./knowledge/hpo"),
 		LLMProtocol:           getEnv("SEPILENS_LLM_PROTOCOL", "openai_responses"),

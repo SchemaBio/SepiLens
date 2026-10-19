@@ -133,3 +133,16 @@ func LookupCriterion(code string) (CriterionDefinition, error) {
 	}
 	return def, nil
 }
+
+// AllowedStrength allows conservative downgrades but never caller/model upgrades.
+func AllowedStrength(code CriterionCode, s Strength) bool {
+	d, ok := CanonicalCriteria[code]
+	if !ok {
+		return false
+	}
+	if d.Direction == DirectionBenign {
+		return s == d.DefaultStrength || (d.DefaultStrength == StrengthStrong && s == StrengthSupporting)
+	}
+	rank := map[Strength]int{StrengthSupporting: 1, StrengthModerate: 2, StrengthStrong: 3, StrengthVeryStrong: 4}
+	return rank[s] > 0 && rank[s] <= rank[d.DefaultStrength]
+}

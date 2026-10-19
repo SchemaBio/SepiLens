@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/pzweuj/sepilens/internal/annotation"
 	"github.com/pzweuj/sepilens/internal/engine"
 	"github.com/pzweuj/sepilens/internal/evidence"
 	"github.com/pzweuj/sepilens/internal/jobs"
+	"github.com/pzweuj/sepilens/internal/rules/acmg2015"
 	"github.com/pzweuj/sepilens/internal/workflow"
 	"net/http"
 	"time"
@@ -82,14 +84,71 @@ func (s *Server) reviseEvidence(w http.ResponseWriter, r *http.Request, j jobs.J
 		WriteError(w, r, 500, ErrCodeInternalError, "result unavailable", false)
 		return
 	}
-	result.RuleEngineResult = s.evaluate(in, snap.Sources, req.Corrections)
+	// Merge by rule code into the saved effective set. Re-running annotation
+	// derivation here would silently erase the professional's corrections.
+	merged := append([]evidence.EvidenceItem(nil), snap.Items...)
+	seen := map[string]bool{}
+	for _, correction := range req.Corrections {
+		if seen[correction.RuleCode] {
+			WriteError(w, r, 422, ErrCodeBadRequest, "duplicate correction code", false)
+			return
+		}
+		seen[correction.RuleCode] = true
+		found := false
+		for n := range merged {
+			if merged[n].RuleCode == correction.RuleCode {
+				merged[n] = correction
+				found = true
+			}
+		}
+		if !found {
+			merged = append(merged, correction)
+		}
+	}
+	if in.SNV != nil && len(snap.Annotations) > 0 {
+		var prior DerivedResult
+		b, _ := json.Marshal(result.RuleEngineResult)
+		if json.Unmarshal(b, &prior) != nil {
+			WriteError(w, r, 409, ErrCodeBadRequest, "saved derivation required", false)
+			return
+		}
+		for _, it := range req.Corrections {
+			if it.RuleCode == "PP4" && it.Status == evidence.StatusMet && (prior.Phenotype == nil || prior.Phenotype.PP4.Status != "met") {
+				WriteError(w, r, 422, ErrCodePhenotypeUnverified, "PP4 requires all saved phenotype gates; changed phenotype requires a new evaluation", false)
+				return
+			}
+		}
+		derivation := acmg2015.Derivation{Gaps: prior.Derivation.Gaps, Conflicts: prior.Derivation.Conflicts}
+		for _, it := range merged {
+			def, ok := acmg2015.CanonicalCriteria[acmg2015.CriterionCode(it.RuleCode)]
+			if !ok {
+				WriteError(w, r, 422, ErrCodeBadRequest, "unknown criterion code", false)
+				return
+			}
+			derivation.Candidates = append(derivation.Candidates, acmg2015.Candidate{Code: def.Code, Direction: def.Direction, Status: acmg2015.CriterionStatus(it.Status), Strength: acmg2015.Strength(it.SuggestedScore), Facts: it.Facts, SourceIDs: it.SourceIDs, Reason: it.Reason})
+		}
+		if in.SNV.Annotations == nil {
+			in.SNV.Annotations = &annotation.Set{}
+			if json.Unmarshal(snap.Annotations, in.SNV.Annotations) != nil {
+				WriteError(w, r, 409, ErrCodeBadRequest, "annotation snapshot invalid", false)
+				return
+			}
+		}
+		in.SNV.phenotypeResult = prior.Phenotype
+		result.RuleEngineResult = s.evaluateDerivation(in.SNV, derivation, snap.Sources)
+	} else {
+		result.RuleEngineResult = s.evaluate(in, snap.Sources, merged)
+	}
 	result.Revision++
 	result.ReviewStatus = "revised_pending"
 	result.ReviewerDecision = nil
+	result.SettlementEligible = false
 	snap.SnapshotID = workflow.ID("snp-")
-	snap.Items = req.Corrections
+	snap.Items = merged
+	snap.Overrides, _ = json.Marshal(map[string]any{"prior": json.RawMessage(snap.Overrides), "reviewer": req.ReviewerID, "corrections": req.Corrections})
 	snap.CreatedAt = time.Now().UTC()
-	snap.Hash, e = evidence.ComputeSnapshotHash(snap.Sources, snap.Items, snap.Provenance)
+	snap.HashVersion = "v2"
+	snap.Hash, e = evidence.SnapshotHash(*snap)
 	if e == nil {
 		e = s.commitRevision(ctx, j, req, result, snap)
 	}

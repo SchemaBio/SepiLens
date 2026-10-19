@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"github.com/pzweuj/sepilens/internal/annotation"
 	"github.com/pzweuj/sepilens/internal/config"
 	"github.com/pzweuj/sepilens/internal/engine"
 	"github.com/pzweuj/sepilens/internal/evidence"
@@ -21,6 +23,12 @@ import (
 
 // This is an isolated synthetic acceptance test, not a clinical approval or golden validation.
 func TestProfessionalRevisionCreatesImmutableHistory(t *testing.T) {
+	for _, withAnnotations := range []bool{false, true} {
+		t.Run(fmt.Sprint("annotations=", withAnnotations), func(t *testing.T) { testProfessionalRevision(t, withAnnotations) })
+	}
+}
+
+func testProfessionalRevision(t *testing.T, withAnnotations bool) {
 	db, e := sqlite.Open(filepath.Join(t.TempDir(), "revision.db"))
 	if e != nil {
 		t.Fatal(e)
@@ -37,6 +45,9 @@ func TestProfessionalRevisionCreatesImmutableHistory(t *testing.T) {
 	s.approvals = map[engine.EngineID]engine.Approval{engine.EngineACMG2015: {ContentHash: "synthetic-rule"}}
 	frequency := .1
 	in := envelope{SNV: &SNVEvaluationRequest{EngineID: "acmg_amp_2015", Variant: SNVVariant{Gene: "TEST", AlleleFrequency: &frequency}, ClinicalContext: SNVContext{Inheritance: "AD", VariantOrigin: "germline_confirmed", SampleType: "blood"}}, RulesetHash: "synthetic-rule", DatasetHash: "unavailable"}
+	if withAnnotations {
+		in.SNV.Annotations = &annotation.Set{Source: annotation.SourceCaller, AlphaMissense: &annotation.AlphaMissense{Record: annotation.Record{Version: "synthetic", Status: annotation.StatusFound}}}
+	}
 	b, _ := json.Marshal(in)
 	j, _, e := s.queue.Submit(context.Background(), "T", "acmg_amp_2015", "production", "", "hash", b)
 	if e != nil {
@@ -62,6 +73,12 @@ func TestProfessionalRevisionCreatesImmutableHistory(t *testing.T) {
 	sources := []evidence.Source{{ID: "S", Type: evidence.SourceTypePubMed, PMID: "12345", IdentifierValid: true, RecordExists: true}}
 	snap := evidence.EvidenceSnapshot{SnapshotID: workflow.ID("snapshot-"), TenantID: "T", EvaluationID: j.JobID, Sources: sources, CreatedAt: time.Now().UTC()}
 	snap.Hash, _ = evidence.ComputeSnapshotHash(snap.Sources, snap.Items, snap.Provenance)
+	if withAnnotations {
+		snap.HashVersion = "v2"
+		snap.Annotations, _ = json.Marshal(in.SNV.Annotations)
+		snap.Items = []evidence.EvidenceItem{{ID: "retained", RuleCode: "PP3", EngineID: j.EngineID, Status: evidence.StatusInsufficientData, SuggestedScore: "Supporting"}}
+		snap.Hash, _ = evidence.SnapshotHash(snap)
+	}
 	if e = s.queue.Evidence.SaveTx(context.Background(), tx, snap); e != nil {
 		tx.Rollback()
 		t.Fatal(e)
@@ -101,6 +118,9 @@ func TestProfessionalRevisionCreatesImmutableHistory(t *testing.T) {
 	snapshots, e := s.queue.Evidence.History(context.Background(), "T", j.JobID)
 	if e != nil || len(snapshots) != 2 || snapshots[0].Sources[0].MaterialVerified {
 		t.Fatal("snapshot overwritten", e)
+	}
+	if withAnnotations && len(snapshots[1].Items) != 2 {
+		t.Fatal("unmodified effective criteria lost", snapshots[1].Items)
 	}
 	var history string
 	if e = db.QueryRow(`SELECT payload FROM audit_versions WHERE tenant_id='T' AND evaluation_id=?`, j.JobID).Scan(&history); e != nil || !strings.HasPrefix(history, "enc1:") {

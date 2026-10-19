@@ -33,6 +33,8 @@ func (s Source) String() string { return string(s) }
 
 // Record is the common provenance envelope carried by every annotation.
 type Record struct {
+	RecordHash  string `json:"record_hash,omitempty"`
+	Query       *Query `json:"query,omitempty"`
 	Source      Source `json:"source"`
 	Version     string `json:"version"`
 	Assembly    string `json:"assembly,omitempty"`
@@ -51,9 +53,20 @@ type Set struct {
 	GenCC         *GenCC         `json:"gencc,omitempty"`
 }
 
+// MarkCallerSupplied discards trust claims arriving over the public API.
+func (s *Set) MarkCallerSupplied() {
+	s.Source = SourceCaller
+	for _, r := range []*Record{recClinVar(s.ClinVar), recGnomAD(s.GnomAD), recAlpha(s.AlphaMissense), recPangolin(s.Pangolin), recGenCC(s.GenCC)} {
+		if r != nil {
+			r.Source = SourceCaller
+		}
+	}
+}
+
 // ClinVar carries the fields needed for PS1/PM5 and disease consistency checks.
 type ClinVar struct {
 	Record
+	Transcript     string   `json:"transcript,omitempty"`
 	VariationID    string   `json:"variation_id,omitempty"`
 	AlleleID       string   `json:"allele_id,omitempty"`
 	Classification string   `json:"classification,omitempty"`
@@ -129,12 +142,23 @@ func (s *Set) Validate(assembly string) error {
 	if s.Source == "" {
 		s.Source = SourceCaller
 	}
+	if s.Source != SourceCaller && s.Source != SourceSnapshot && s.Source != SourceAPI {
+		return fmt.Errorf("invalid annotation source")
+	}
 	check := func(r *Record, name string) error {
 		if r == nil {
 			return nil
 		}
 		if r.Version == "" {
 			return fmt.Errorf("%s: %w", name, ErrMissingVersion)
+		}
+		if r.Source != "" && r.Source != SourceCaller && r.Source != SourceSnapshot && r.Source != SourceAPI {
+			return fmt.Errorf("%s: invalid annotation source", name)
+		}
+		switch r.Status {
+		case "", StatusFound, StatusNotFound, StatusConflicting, StatusUnavailable, StatusStale, StatusCallerInput:
+		default:
+			return fmt.Errorf("%s: invalid annotation status", name)
 		}
 		if r.Assembly != "" && normalizeAssembly(r.Assembly) != normalizeAssembly(assembly) {
 			return fmt.Errorf("%s: %w", name, ErrAssemblyMismatch)
@@ -214,8 +238,10 @@ func normalizeAssembly(v string) string {
 	switch strings.ToUpper(strings.TrimSpace(v)) {
 	case "GRCH37", "HG19":
 		return "GRCh37"
-	default:
+	case "GRCH38", "HG38":
 		return "GRCh38"
+	default:
+		return strings.TrimSpace(v)
 	}
 }
 
@@ -225,7 +251,7 @@ func (c *ClinVar) ReviewStars() int {
 	if c == nil {
 		return 0
 	}
-	switch strings.ToLower(strings.TrimSpace(c.ReviewStatus)) {
+	switch strings.ReplaceAll(strings.ToLower(strings.TrimSpace(c.ReviewStatus)), " ", "_") {
 	case "practice_guideline", "reviewed_by_expert_panel":
 		return 3
 	case "criteria_provided,_multiple_submitters,_no_conflicts":

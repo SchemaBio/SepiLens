@@ -147,6 +147,11 @@ func run() error {
 		ann = cnv.NewSnapshotAnnotator(bundle.Regions, bundle.Complete, bundle.Hash)
 		idx = hpo.NewIndex(bundle.HPO)
 		srv.SetReferences(bundle.References)
+		srv.SetAnnotationIndex(bundle.Annotations)
+		srv.SetPhenotypeDataset(bundle.Phenotype)
+		if bundle.Annotations != nil {
+			defer bundle.Annotations.Close()
+		}
 		offline = retrieval.NewClinGenRegionRetriever(bundle.Regions, bundle.Hash)
 		hpoDir = filepath.Join(*bundleDir, "hpo")
 	}

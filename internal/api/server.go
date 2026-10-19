@@ -8,12 +8,14 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/pzweuj/sepilens/internal/annotation"
 	"github.com/pzweuj/sepilens/internal/config"
 	"github.com/pzweuj/sepilens/internal/engine"
 	"github.com/pzweuj/sepilens/internal/evidence"
 	"github.com/pzweuj/sepilens/internal/hpo"
 	"github.com/pzweuj/sepilens/internal/jobs"
 	"github.com/pzweuj/sepilens/internal/knowledge"
+	"github.com/pzweuj/sepilens/internal/phenotype"
 	"github.com/pzweuj/sepilens/internal/profiles"
 	"github.com/pzweuj/sepilens/internal/retrieval"
 	"github.com/pzweuj/sepilens/internal/rules/acmg2015"
@@ -24,6 +26,8 @@ import (
 )
 
 type Server struct {
+	phenotypeData   *phenotype.Dataset
+	annotationIndex *annotation.Index
 	cancel          context.CancelFunc
 	maintenanceDone chan struct{}
 	references      map[string]*knowledge.Reference
@@ -43,6 +47,10 @@ type Server struct {
 	cnvGainEngine   *cnvgain2020.Engine
 	cnvAnnotator    *cnv.Annotator
 }
+
+func (s *Server) SetAnnotationIndex(index *annotation.Index) { s.annotationIndex = index }
+
+func (s *Server) SetPhenotypeDataset(d *phenotype.Dataset) { s.phenotypeData = d }
 
 func (s *Server) SetReferences(refs map[string]*knowledge.Reference) { s.references = refs }
 
@@ -98,6 +106,7 @@ func NewServer(cfg config.Config, store jobs.Store, db *sql.DB, logger *slog.Log
 		r.Post("/hpo/extract", s.handleHPOExtract)
 		r.Post("/annotations/validate", s.handleAnnotationValidate)
 		r.Get("/annotations/sources", s.handleAnnotationSources)
+		r.Post("/phenotype/match", s.handlePhenotypeMatch)
 
 		r.Route("/variants", func(r chi.Router) {
 			r.Post("/snv/evaluations", s.handleSNVEvaluation)

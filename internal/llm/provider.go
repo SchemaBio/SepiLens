@@ -2,6 +2,7 @@ package llm
 
 import (
 	"context"
+	"encoding/json"
 )
 
 type Protocol string
@@ -22,6 +23,8 @@ type ModelCapabilities struct {
 }
 
 type GenerateRequest struct {
+	Tools       []Tool            `json:"tools,omitempty"`
+	History     []ToolTurn        `json:"history,omitempty"`
 	Model       string            `json:"model"`
 	Prompt      string            `json:"prompt"`
 	System      string            `json:"system,omitempty"`
@@ -32,12 +35,34 @@ type GenerateRequest struct {
 }
 
 type GenerateResult struct {
-	Content      string         `json:"content"`
-	InputTokens  int            `json:"input_tokens"`
-	OutputTokens int            `json:"output_tokens"`
-	Citations    []string       `json:"citations,omitempty"`
-	FinishReason string         `json:"finish_reason"`
-	RawResponse  map[string]any `json:"raw_response,omitempty"`
+	ToolCalls     []ToolCall        `json:"tool_calls,omitempty"`
+	ResponseItems []json.RawMessage `json:"response_items,omitempty"`
+	Content       string            `json:"content"`
+	InputTokens   int               `json:"input_tokens"`
+	OutputTokens  int               `json:"output_tokens"`
+	Citations     []string          `json:"citations,omitempty"`
+	FinishReason  string            `json:"finish_reason"`
+	RawResponse   map[string]any    `json:"raw_response,omitempty"`
+}
+
+type Tool struct {
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Parameters  map[string]any `json:"parameters"`
+}
+type ToolCall struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
+}
+type ToolOutput struct {
+	CallID string `json:"call_id"`
+	Output string `json:"output"`
+}
+type ToolTurn struct {
+	Calls         []ToolCall        `json:"calls"`
+	Outputs       []ToolOutput      `json:"outputs"`
+	ResponseItems []json.RawMessage `json:"response_items,omitempty"`
 }
 
 type ModelEvent struct {

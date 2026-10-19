@@ -16,7 +16,7 @@ def field_type(t):
         return {"type": ["array", "null"], "items": field_type(t[2:])}
     if t.startswith("map[string]"):
         return {"type": "object", "additionalProperties": field_type(t[11:])}
-    if t in ("string", "ErrorCode", "EngineID", "Status", "JobStatus", "SourceType", "SourceValidation", "EvidenceStatus", "Confidence", "Polarity", "Protocol", "CriterionCode", "Strength", "Direction", "CriterionStatus"):
+    if t.split(".")[-1] in ("string", "ErrorCode", "EngineID", "Status", "JobStatus", "SourceType", "SourceValidation", "EvidenceStatus", "Confidence", "Polarity", "Protocol", "CriterionCode", "Strength", "Direction", "CriterionStatus"):
         return {"type": "string"}
     if t == "bool":
         return {"type": "boolean"}
@@ -26,13 +26,13 @@ def field_type(t):
         return {"type": "number"}
     if t == "time.Time":
         return {"type": "string", "format": "date-time"}
-    if t in ("any", "interface{}"):
+    if t in ("any", "interface{}", "json.RawMessage"):
         return {}
     return ref(t.split(".")[-1])
 
 # Sources are parsed only for public request/response structs. New packages are added here once their
 # types are exposed through an API handler; parsing a package with no exposed struct is harmless.
-SOURCE_FILES = ("internal/rules/svcv4/model.go", "internal/api/admission.go", "internal/api/annotation_handler.go", "internal/api/jobs_handler.go", "internal/api/errors.go", "internal/api/server.go", "internal/api/provider_test_handler.go", "internal/evidence/model.go", "internal/hpo/model.go", "internal/jobs/store.go", "internal/engine/registry.go", "internal/rules/acmg2015/evaluator.go", "internal/rules/acmg2015/criteria.go", "internal/rules/cnvrubric/evaluate.go")
+SOURCE_FILES = ("internal/rules/svcv4/model.go", "internal/api/admission.go", "internal/api/annotation_handler.go", "internal/api/jobs_handler.go", "internal/api/errors.go", "internal/api/server.go", "internal/api/provider_test_handler.go", "internal/evidence/model.go", "internal/hpo/model.go", "internal/jobs/store.go", "internal/engine/registry.go", "internal/rules/acmg2015/evaluator.go", "internal/rules/acmg2015/criteria.go", "internal/rules/cnvrubric/evaluate.go", "internal/api/phenotype_handler.go", "internal/phenotype/model.go", "internal/phenotype/pp4.go", "internal/api/evaluate.go", "internal/rules/acmg2015/derive.go", "internal/rules/acmg2015/points.go", "internal/agent/override.go")
 
 for rel in SOURCE_FILES:
     path = ROOT / rel
@@ -96,6 +96,8 @@ PROVENANCE = {
     "retrieved_at": {"type": "string", "format": "date-time"},
     "status": {"type": "string", "enum": ["found", "not_found", "conflicting", "unavailable", "stale", "caller_supplied"]},
     "reason": {"type": "string"},
+    "record_hash": {"type":"string"},
+    "query": {"type":"object", "additionalProperties":True, "description":"Exact snapshot query; caller-provided provenance is never trusted."},
 }
 for name in ("ClinVar", "GnomAD", "AlphaMissense", "Pangolin", "GenCC"):
     if name in SCHEMAS:
@@ -131,6 +133,12 @@ SCHEMAS["EvaluationResultPayload"]["properties"]["agent_proposal"] = ref("AgentP
 SCHEMAS["ProviderTestRequest"]["properties"]["api_key"]["writeOnly"] = True
 SCHEMAS["EvaluationResultPayload"]["properties"]["rule_engine_result"] = ref("RuleEngineResult")
 SCHEMAS["EvaluationResultPayload"]["properties"]["reviewer_decision"] = {"anyOf": [ref("ReviewDecision"), {"type": "null"}]}
+SCHEMAS["EvidenceSnapshot"]["properties"].update(SCHEMAS["SnapshotExtensions"]["properties"])
+SCHEMAS["DerivedResult"]["properties"].update(SCHEMAS["EvaluationOutput"]["properties"])
+SCHEMAS["RuleEngineResult"] = {"anyOf": [ref("EvaluationOutput"), ref("DerivedResult"), ref("CNVRuleResult"), {"type":"null"}], "description":"Deterministic classification; null outside approved production. AI classifications are ignored."}
+SCHEMAS["EvaluationResultPayload"]["properties"]["local_baseline"] = ref("DerivedResult")
+SCHEMAS["EvaluationOptions"]["properties"]["annotation_source"]["enum"] = ["caller_supplied", "sepilens_snapshot"]
+SCHEMAS["AgentProposal"]["properties"].update({"ai_assessment":ref("Assessment"),"reconciliation":field_type("[]Reconciliation"),"major_override":{"type":"boolean"}})
 
 PATHS = {}
 def op(path, method, summary, request=None, response=None, status="200", extra=None, public=False):
@@ -163,6 +171,7 @@ hpo = op("/v1/hpo/extract", "post", "Transient HPO extraction; explicit local fa
 hpo["responses"]["202"] = {"description": "Simulation queued", "content": {"application/json": {"schema": ref("JobAccepted")}}}
 op("/v1/annotations/validate", "post", "Normalize and validate caller-supplied annotations without classifying", "AnnotationRequest")
 op("/v1/annotations/sources", "get", "Available annotation sources and their settlement status", response="AnnotationSourcesResponse")
+op("/v1/phenotype/match", "post", "Versioned phenotype matching and PP4 gates; never a variant classification", "PhenotypeMatchRequest", "PhenotypeAssessment")
 for name, request in (("snv", "SNVEvaluationRequest"), ("cnv", "CNVEvaluationRequest")):
     item = op(f"/v1/variants/{name}/evaluations", "post", "Persist and queue; approved rules required for germline production; unknown origin evidence_only", request, "JobAccepted", "202", [{"name": "Idempotency-Key", "in": "header", "schema": {"type": "string", "maxLength": 256}, "description": "Unique per tenant. Same pinned normalized request replays; conflicting request returns 409."}])
     item["responses"]["200"] = {"description": "Idempotent replay; no new external invocation", "content": {"application/json": {"schema": ref("JobAccepted")}}}

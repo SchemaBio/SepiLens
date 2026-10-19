@@ -1,5 +1,7 @@
 # API 与 alpha 迁移
 
+新增离线注释、表型评分、AI 覆盖和 v2 迁移见 [快照与评估操作说明](SNAPSHOT_ASSESSMENT_V2.md)。有基线的 AI 失败任务可读取部分结果，必须检查 delivery_status，不能仅以 HTTP 200 判定成功交付。
+
 完整路径及结构见 `openapi.yaml`（OpenAPI 3.1，JSON 是合法 YAML 子集）。通过 `python scripts/openapi.py` 从 Go 公共结构及路径说明重建；错误统一为 `error.code,message,request_id,retryable`。JSON 请求拒绝未知字段、重复顶层对象及超过 2 MiB 的输入。
 
 认证：`Authorization: Bearer TOKEN`。Token 决定 tenant/actor/role，不接受客户端冒充审核人员。HPO 为同步候选提取；变异评估在事务保存输入后返回 202，而不是等待模型。首次响应 `job_id,status,result_kind,is_replayed`；GET jobs/result 在待执行时 202、失败 409、取消 410、交付完成 200。

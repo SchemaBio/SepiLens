@@ -38,7 +38,7 @@ func TestLegacyMigrationPreservesDuplicateHistory(t *testing.T) {
 		t.Fatal("no pre migration backup", e)
 	}
 	var version int
-	if e = migrated.QueryRow(`SELECT MAX(version) FROM schema_migrations`).Scan(&version); e != nil || version != 6 {
+	if e = migrated.QueryRow(`SELECT MAX(version) FROM schema_migrations`).Scan(&version); e != nil || version != 7 {
 		t.Fatal("schema migration incomplete", version, e)
 	}
 }

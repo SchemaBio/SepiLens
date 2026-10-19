@@ -1,0 +1,31 @@
+{
+  "kind": "engineering_query_holdout_not_clinical_validation",
+  "seed": 20261019,
+  "cases": 2,
+  "mapped_cases": 2,
+  "top1": 1.0,
+  "top3": 1.0,
+  "mean_reciprocal_rank": 1.0,
+  "input_sha256": {
+    "hpoa": "6e91411ff8fee5fae00af1ce47e8ac43a101a1fd67a00aaef7346fc214d2aee2",
+    "gencc": "8b4e8f70e44db71361d28da13a386e1869835cf10b2775435fa4ded15aeb64ec"
+  },
+  "outcomes": [
+    {
+      "gene": "G",
+      "disease_id": "OMIM:1",
+      "held_out": "HP:0000004",
+      "term_count": 2,
+      "rank": 1,
+      "spec_version": "sepi-pheno-0.1"
+    },
+    {
+      "gene": "G",
+      "disease_id": "OMIM:2",
+      "held_out": "HP:0000005",
+      "term_count": 2,
+      "rank": 1,
+      "spec_version": "sepi-pheno-0.1"
+    }
+  ]
+}

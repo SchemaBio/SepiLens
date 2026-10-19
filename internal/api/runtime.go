@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/go-chi/chi/v5"
+	"github.com/pzweuj/sepilens/internal/annotation"
 	"github.com/pzweuj/sepilens/internal/engine"
 	"github.com/pzweuj/sepilens/internal/evidence"
 	"github.com/pzweuj/sepilens/internal/jobs"
@@ -21,6 +22,7 @@ import (
 )
 
 type envelope struct {
+	AssessmentTime time.Time             `json:"assessment_time,omitzero"`
 	SNV            *SNVEvaluationRequest `json:"snv,omitempty"`
 	CNV            *CNVEvaluationRequest `json:"cnv,omitempty"`
 	ProfileVersion int                   `json:"profile_version,omitempty"`
@@ -110,6 +112,16 @@ func (s *Server) submit(w http.ResponseWriter, r *http.Request, id string, input
 		WriteError(w, r, 409, ErrCodeRulesetNotAvailable, "independent validation and signed approval required", false)
 		return
 	}
+	if input.SNV != nil && input.SNV.Mode == ModeAIAssisted {
+		if s.cfg.AIMode != "enabled" || kind != "production" {
+			WriteError(w, r, 409, ErrCodeRulesetNotAvailable, "AI mode requires explicit enablement and approved production rules", false)
+			return
+		}
+		if opts.ProviderProfileID == "" {
+			WriteError(w, r, 422, ErrCodeProviderUnavailable, "AI mode requires a versioned provider profile", false)
+			return
+		}
+	}
 	if s.queue == nil {
 		WriteError(w, r, 503, ErrCodeInternalError, "persistent worker not initialized", true)
 		return
@@ -127,12 +139,14 @@ func (s *Server) submit(w http.ResponseWriter, r *http.Request, id string, input
 		}
 		input.ProfileVersion = p.Version
 	}
+	hashInput, _ := json.Marshal(input)
+	input.AssessmentTime = time.Now().UTC()
 	b, e := json.Marshal(input)
 	if e != nil {
 		WriteError(w, r, 400, ErrCodeBadRequest, "invalid request", false)
 		return
 	}
-	j, replay, e := s.queue.Submit(r.Context(), GetTenantID(r.Context()), id, kind, r.Header.Get("Idempotency-Key"), computeBodyHash(b), b)
+	j, replay, e := s.queue.Submit(r.Context(), GetTenantID(r.Context()), id, kind, r.Header.Get("Idempotency-Key"), computeBodyHash(hashInput), b)
 	if errors.Is(e, workflow.ErrConflict) {
 		WriteError(w, r, 409, ErrCodeIdempotencyConflict, "idempotency key conflicts", false)
 		return
@@ -148,6 +162,9 @@ func (s *Server) submit(w http.ResponseWriter, r *http.Request, id string, input
 	writeJSON(w, status, map[string]any{"job_id": j.JobID, "status": j.Status, "result_kind": j.ResultKind, "is_replayed": replay})
 }
 func (s *Server) datasetHash() string {
+	if s.annotationIndex != nil {
+		return s.annotationIndex.Hash
+	}
 	if s.cnvAnnotator == nil {
 		return "unavailable"
 	}
@@ -161,8 +178,30 @@ func (s *Server) execute(ctx context.Context, t workflow.Task) (any, *evidence.E
 	if in.DatasetHash != s.datasetHash() {
 		return nil, nil, errors.New("pinned dataset unavailable")
 	}
+	assessmentTime := in.AssessmentTime
+	if assessmentTime.IsZero() {
+		assessmentTime = time.Now().UTC()
+	}
+	if in.SNV != nil {
+		in.SNV.assessmentTime = assessmentTime
+	}
+	if in.SNV != nil && in.SNV.Options.AnnotationSource == "sepilens_snapshot" {
+		if s.annotationIndex == nil {
+			return nil, nil, errors.New("ANNOTATION_UNAVAILABLE")
+		}
+		r := in.SNV
+		set, err := s.annotationIndex.Resolve(ctx, annotation.Query{Assembly: r.Variant.Assembly, Chrom: r.Variant.Chrom, Pos: r.Variant.Pos, Ref: r.Variant.Ref, Alt: r.Variant.Alt, Gene: r.Variant.Gene, Transcript: r.Variant.Transcript, Protein: r.Variant.HGVSp, DiseaseID: r.ClinicalContext.DiseaseID, MOI: r.ClinicalContext.Inheritance}, assessmentTime)
+		if err != nil {
+			return nil, nil, err
+		}
+		r.Annotations = set
+		r.snapshotResolved = true
+	}
 	if t.EngineID == string(engine.EngineSVCv4) && (in.SNV == nil || in.RulesetHash != svcv4.RulesetHash() || (t.Kind != "experimental" && t.Kind != "evidence_only")) {
 		return nil, nil, errors.New("pinned experimental SVC reference unavailable")
+	}
+	if in.SNV != nil && in.SNV.Mode == ModeAIAssisted {
+		return s.executeAI(ctx, t, in)
 	}
 	var opts EvaluationOptions
 	var q retrieval.Query
@@ -189,6 +228,9 @@ func (s *Server) execute(ctx context.Context, t workflow.Task) (any, *evidence.E
 		sources[i].MaterialVerified = false
 	}
 	q.Mode = resolveRetrievalMode(opts)
+	if in.SNV != nil && in.SNV.Mode == ModeLocal {
+		q.Mode = retrieval.ModeOff
+	}
 	var prov evidence.ProvenanceMetadata
 	var usage ResourceUsage
 	var retrievalMissing []string
@@ -221,7 +263,14 @@ func (s *Server) execute(ctx context.Context, t workflow.Task) (any, *evidence.E
 		items[i].ReviewRequired = true
 	}
 	var proposal any = map[string]any{"evidence": items, "missing_information": append(retrievalMissing, "professional evidence verification required")}
-	if opts.ProviderProfileID != "" {
+	if in.SNV != nil && in.SNV.Phenotype != nil {
+		p, err := s.phenotypeAssessment(ctx, in.SNV)
+		if err != nil {
+			return nil, nil, err
+		}
+		in.SNV.phenotypeResult = p
+	}
+	if opts.ProviderProfileID != "" && (in.SNV == nil || in.SNV.Mode != ModeLocal) {
 		p, e := s.profiles.Get(ctx, t.TenantID, opts.ProviderProfileID, in.ProfileVersion)
 		if e != nil {
 			return nil, nil, e
@@ -263,15 +312,43 @@ func (s *Server) execute(ctx context.Context, t workflow.Task) (any, *evidence.E
 			return nil, nil, errors.New("pinned ruleset approval unavailable")
 		}
 		result = s.evaluate(in, sources, items)
+		if d, ok := result.(DerivedResult); ok {
+			sources = append(sources, annotationSources(in.SNV, d.Derivation)...)
+			items = derivedEvidence(d.Derivation, t.EngineID)
+		}
 	}
-	hash, e := evidence.ComputeSnapshotHash(sources, items, prov)
+	snap := &evidence.EvidenceSnapshot{SnapshotID: workflow.ID("snp-"), EvaluationID: t.JobID, TenantID: t.TenantID, Sources: sources, Items: items, Provenance: prov, CreatedAt: time.Now().UTC()}
+	snap.Items = evidence.NewSourceVerifier().EnforceEvidenceIntegrity(snap.Items, sources)
+	if snap.Provenance.DatasetVersions == nil {
+		snap.Provenance.DatasetVersions = map[string]string{}
+	}
+	snap.Provenance.DatasetVersions["bundle"] = in.DatasetHash
+	for _, src := range sources {
+		if src.DatasetVersion != "" {
+			snap.Provenance.DatasetVersions[src.ID] = src.DatasetVersion
+		}
+	}
+	snap.HashVersion = "v2"
+	if in.SNV != nil {
+		if in.SNV.Annotations != nil {
+			snap.Annotations, _ = json.Marshal(in.SNV.Annotations)
+		}
+		if in.SNV.Phenotype != nil {
+			snap.Phenotype, _ = json.Marshal(map[string]any{"input": in.SNV.Phenotype, "assessment": in.SNV.phenotypeResult})
+		}
+	}
+	snap.Agent, _ = json.Marshal(proposal)
+	hash, e := evidence.SnapshotHash(*snap)
 	if e != nil {
 		return nil, nil, e
 	}
-	snap := &evidence.EvidenceSnapshot{SnapshotID: workflow.ID("snp-"), EvaluationID: t.JobID, TenantID: t.TenantID, Hash: hash, Sources: sources, Items: items, Provenance: prov, CreatedAt: time.Now().UTC()}
+	snap.Hash = hash
 	payload := EvaluationResultPayload{EvaluationID: t.JobID, EngineID: t.EngineID, ResultKind: t.Kind, ClinicalUse: "requires_review", DeliveryStatus: "delivered", SettlementEligible: t.Kind == "production", AgentProposal: proposal, RuleEngineResult: result, ReviewRequired: true, RulesetHash: in.RulesetHash, DatasetHash: in.DatasetHash, ProfileVersion: in.ProfileVersion, PromptVersion: "evidence-v1", ReviewStatus: "pending"}
 	usage.WebSearches = prov.RequestsCount
 	payload.Revision = 1
+	if in.SNV != nil && in.SNV.Annotations != nil && !in.SNV.snapshotResolved {
+		payload.SettlementEligible = false
+	}
 	usage.DurationMS = prov.DurationMS
 	payload.Usage = usage
 	if t.Kind != "production" {

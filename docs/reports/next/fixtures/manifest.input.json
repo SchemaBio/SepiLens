@@ -1,0 +1,40 @@
+{
+  "version": "synthetic",
+  "assets": [
+    {
+      "license_confirmed": true,
+      "path": "hp.obo",
+      "url": "https://raw.githubusercontent.com/obophenotype/human-phenotype-ontology/synthetic/hp.obo",
+      "sha256": "e13533c89875b25f973807e38bf41e716dd76cf955c9c944d5eb37c286513db4",
+      "version": "synthetic-1",
+      "license": "synthetic-test-only",
+      "kind": "hpo_obo",
+      "complete": true,
+      "retrieved_at": "2026-10-19T14:52:54.271850Z"
+    },
+    {
+      "format": "hpoa-v1",
+      "license_confirmed": true,
+      "path": "phenotype.hpoa",
+      "url": "https://raw.githubusercontent.com/obophenotype/human-phenotype-ontology/synthetic/phenotype.hpoa",
+      "sha256": "6e91411ff8fee5fae00af1ce47e8ac43a101a1fd67a00aaef7346fc214d2aee2",
+      "version": "synthetic-1",
+      "license": "synthetic-test-only",
+      "kind": "hpoa",
+      "complete": true,
+      "retrieved_at": "2026-10-19T14:52:54.271850Z"
+    },
+    {
+      "format": "gencc-legacy-v1",
+      "license_confirmed": true,
+      "path": "gencc.tsv",
+      "url": "https://thegencc.org/synthetic.tsv",
+      "sha256": "8b4e8f70e44db71361d28da13a386e1869835cf10b2775435fa4ded15aeb64ec",
+      "version": "synthetic-1",
+      "license": "synthetic-test-only",
+      "kind": "gencc_tsv",
+      "complete": true,
+      "retrieved_at": "2026-10-19T14:52:54.274883Z"
+    }
+  ]
+}

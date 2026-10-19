@@ -67,6 +67,7 @@ func Derive(a *annotation.Set, variant SNVVariantInput, ctx ClinicalContextInput
 		out.add(deriveBP6(a.ClinVar))
 	}
 	out.add(derivePVS1(variant, a, ctx, opts))
+	out.Conflicts = annotation.NewResolver().Conflicts(a)
 	return out
 }
 
@@ -152,15 +153,18 @@ func derivePP3(am *annotation.AlphaMissense, pg *annotation.Pangolin, v SNVVaria
 	var sources []string
 	missense := strings.Contains(strings.ToLower(v.Consequence), "missense") || strings.TrimSpace(v.HGVSp) != ""
 	support := false
-	if am != nil && am.Class == "likely_pathogenic" && missense && transcriptMatches(am.Transcript, v.Transcript) {
+	if am != nil && annotation.HasRecord(am.Status) && am.Class == "likely_pathogenic" && missense && transcriptMatches(am.Transcript, v.Transcript) {
 		support = true
 		sources = append(sources, "alphamissense:"+am.Version)
 	}
-	if pg != nil && pg.Interpretation == "splice_altering" && transcriptMatches(pg.Transcript, v.Transcript) {
+	if pg != nil && annotation.HasRecord(pg.Status) && pg.Interpretation == "splice_altering" && transcriptMatches(pg.Transcript, v.Transcript) {
 		support = true
 		sources = append(sources, "pangolin:"+pg.Version)
 	}
 	if !support {
+		if missense {
+			return insufficient(CodePP3, "no usable computational evidence", "computational_support")
+		}
 		return notApplicable(CodePP3, "no applicable computational evidence")
 	}
 	return met(CodePP3, StrengthSupporting, "computational evidence supports a damaging effect; correlated predictors form one criterion",
@@ -170,13 +174,16 @@ func derivePP3(am *annotation.AlphaMissense, pg *annotation.Pangolin, v SNVVaria
 func deriveBP4(am *annotation.AlphaMissense, pg *annotation.Pangolin, v SNVVariantInput) *Candidate {
 	var sources []string
 	missense := strings.Contains(strings.ToLower(v.Consequence), "missense") || strings.TrimSpace(v.HGVSp) != ""
-	if am != nil && am.Class == "likely_benign" && missense && transcriptMatches(am.Transcript, v.Transcript) {
+	if am != nil && annotation.HasRecord(am.Status) && am.Class == "likely_benign" && missense && transcriptMatches(am.Transcript, v.Transcript) {
 		sources = append(sources, "alphamissense:"+am.Version)
 	}
-	if pg != nil && pg.Interpretation == "no_splice_impact" && transcriptMatches(pg.Transcript, v.Transcript) {
+	if pg != nil && annotation.HasRecord(pg.Status) && pg.Interpretation == "no_splice_impact" && transcriptMatches(pg.Transcript, v.Transcript) {
 		sources = append(sources, "pangolin:"+pg.Version)
 	}
 	if len(sources) == 0 {
+		if missense {
+			return insufficient(CodeBP4, "no usable computational evidence", "computational_no_impact")
+		}
 		return notApplicable(CodeBP4, "no applicable computational evidence")
 	}
 	return met(CodeBP4, StrengthSupporting, "computational evidence suggests no impact; correlated predictors form one criterion",
@@ -188,13 +195,19 @@ func deriveBP7(v SNVVariantInput, pg *annotation.Pangolin) *Candidate {
 	if !strings.Contains(consequence, "synonymous") && !strings.Contains(consequence, "synonymous_variant") {
 		return notApplicable(CodeBP7, "variant is not synonymous")
 	}
-	if pg == nil || pg.Interpretation != "no_splice_impact" || !transcriptMatches(pg.Transcript, v.Transcript) {
+	if pg == nil || !annotation.HasRecord(pg.Status) || pg.Interpretation != "no_splice_impact" || !transcriptMatches(pg.Transcript, v.Transcript) {
 		return insufficient(CodeBP7, "synonymous variant requires a splice prediction", "no_splice_impact")
 	}
 	return insufficient(CodeBP7, "conservation evidence is required and not supplied", "not_highly_conserved")
 }
 
 func derivePS1(cv *annotation.ClinVar) *Candidate {
+	if cv != nil && (cv.Conflicting || cv.Status == annotation.StatusConflicting) {
+		return &Candidate{Code: CodePS1, Direction: DirectionPathogenic, Status: CriterionStatusConflicting, Strength: StrengthStrong, Reason: "ClinVar snapshot records conflict"}
+	}
+	if cv == nil || !annotation.HasRecord(cv.Status) {
+		return insufficient(CodePS1, "ClinVar record unavailable", "same_amino_acid_as_established_pathogenic")
+	}
 	if cv == nil || len(cv.OtherPathogenicSameAminoAcid) == 0 {
 		return insufficient(CodePS1, "no established pathogenic change at the same amino acid", "same_amino_acid_as_established_pathogenic")
 	}
@@ -210,6 +223,12 @@ func derivePS1(cv *annotation.ClinVar) *Candidate {
 }
 
 func derivePM5(cv *annotation.ClinVar) *Candidate {
+	if cv != nil && (cv.Conflicting || cv.Status == annotation.StatusConflicting) {
+		return &Candidate{Code: CodePM5, Direction: DirectionPathogenic, Status: CriterionStatusConflicting, Strength: StrengthModerate, Reason: "ClinVar snapshot records conflict"}
+	}
+	if cv == nil || !annotation.HasRecord(cv.Status) {
+		return insufficient(CodePM5, "ClinVar record unavailable", "different_missense_same_residue_pathogenic")
+	}
 	if cv == nil || len(cv.OtherPathogenicSameResidue) == 0 {
 		return insufficient(CodePM5, "no established pathogenic missense at the same residue", "different_missense_same_residue_pathogenic")
 	}
@@ -231,6 +250,12 @@ func deriveBP1(v SNVVariantInput, ctx ClinicalContextInput) *Candidate {
 }
 
 func derivePP5(cv *annotation.ClinVar) *Candidate {
+	if cv != nil && (cv.Conflicting || cv.Status == annotation.StatusConflicting) {
+		return &Candidate{Code: CodePP5, Direction: DirectionPathogenic, Status: CriterionStatusConflicting, Strength: StrengthSupporting, Reason: "ClinVar assertions conflict"}
+	}
+	if cv == nil || !annotation.HasRecord(cv.Status) {
+		return insufficient(CodePP5, "ClinVar record unavailable", "reputable_pathogenic_assertion")
+	}
 	if cv == nil || !cv.IsPathogenic() {
 		return notApplicable(CodePP5, "no reputable pathogenic assertion")
 	}
@@ -240,6 +265,12 @@ func derivePP5(cv *annotation.ClinVar) *Candidate {
 }
 
 func deriveBP6(cv *annotation.ClinVar) *Candidate {
+	if cv != nil && (cv.Conflicting || cv.Status == annotation.StatusConflicting) {
+		return &Candidate{Code: CodeBP6, Direction: DirectionBenign, Status: CriterionStatusConflicting, Strength: StrengthSupporting, Reason: "ClinVar assertions conflict"}
+	}
+	if cv == nil || !annotation.HasRecord(cv.Status) {
+		return insufficient(CodeBP6, "ClinVar record unavailable", "reputable_benign_assertion")
+	}
 	if cv == nil || !cv.IsBenign() {
 		return notApplicable(CodeBP6, "no reputable benign assertion")
 	}

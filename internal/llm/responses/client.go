@@ -88,6 +88,56 @@ func (c *Client) request(ctx context.Context, r llm.GenerateRequest, stream bool
 	if r.Temperature != nil {
 		p["temperature"] = *r.Temperature
 	}
+	if len(r.Tools) > 0 || len(r.History) > 0 {
+		if stream {
+			return nil, errors.New("streaming tool execution is not supported")
+		}
+		tools := []any{}
+		for _, t := range r.Tools {
+			f := map[string]any{"name": t.Name, "description": t.Description, "parameters": t.Parameters, "strict": true}
+			if c.cfg.Protocol == llm.ProtocolOpenAIResponses {
+				f["type"] = "function"
+				tools = append(tools, f)
+			} else {
+				tools = append(tools, map[string]any{"type": "function", "function": f})
+			}
+		}
+		if len(tools) > 0 {
+			p["tools"] = tools
+			p["parallel_tool_calls"] = false
+		}
+		if c.cfg.Protocol == llm.ProtocolOpenAIResponses {
+			input := []any{map[string]any{"role": "user", "content": r.Prompt}}
+			for _, turn := range r.History {
+				if len(turn.ResponseItems) > 0 {
+					for _, item := range turn.ResponseItems {
+						input = append(input, item)
+					}
+				} else {
+					for _, call := range turn.Calls {
+						input = append(input, map[string]any{"type": "function_call", "call_id": call.ID, "name": call.Name, "arguments": call.Arguments})
+					}
+				}
+				for _, out := range turn.Outputs {
+					input = append(input, map[string]any{"type": "function_call_output", "call_id": out.CallID, "output": out.Output})
+				}
+			}
+			p["input"] = input
+		} else {
+			messages := []any{map[string]any{"role": "system", "content": r.System}, map[string]any{"role": "user", "content": r.Prompt}}
+			for _, turn := range r.History {
+				calls := []any{}
+				for _, call := range turn.Calls {
+					calls = append(calls, map[string]any{"id": call.ID, "type": "function", "function": map[string]any{"name": call.Name, "arguments": call.Arguments}})
+				}
+				messages = append(messages, map[string]any{"role": "assistant", "tool_calls": calls})
+				for _, out := range turn.Outputs {
+					messages = append(messages, map[string]any{"role": "tool", "tool_call_id": out.CallID, "content": out.Output})
+				}
+			}
+			p["messages"] = messages
+		}
+	}
 	b, err := json.Marshal(p)
 	if err != nil {
 		return nil, errors.New("invalid model request")
@@ -112,14 +162,26 @@ func (c *Client) request(ctx context.Context, r llm.GenerateRequest, stream bool
 type wire struct {
 	Status string `json:"status"`
 	Output []struct {
-		Content []struct {
+		Type      string `json:"type"`
+		CallID    string `json:"call_id"`
+		Name      string `json:"name"`
+		Arguments string `json:"arguments"`
+		Content   []struct {
 			Type string `json:"type"`
 			Text string `json:"text"`
 		} `json:"content"`
 	} `json:"output"`
 	Choices []struct {
 		Message struct {
-			Content string `json:"content"`
+			Content   string `json:"content"`
+			ToolCalls []struct {
+				ID       string `json:"id"`
+				Type     string `json:"type"`
+				Function struct {
+					Name      string `json:"name"`
+					Arguments string `json:"arguments"`
+				} `json:"function"`
+			} `json:"tool_calls"`
 		} `json:"message"`
 		Finish string `json:"finish_reason"`
 	} `json:"choices"`
@@ -154,14 +216,45 @@ func (c *Client) Generate(ctx context.Context, r llm.GenerateRequest) (llm.Gener
 		out.FinishReason = w.Choices[0].Finish
 		out.InputTokens = w.Usage.Prompt
 		out.OutputTokens = w.Usage.Completion
+		for _, call := range w.Choices[0].Message.ToolCalls {
+			if call.Type != "function" {
+				return out, errors.New("unsupported tool call type")
+			}
+			out.ToolCalls = append(out.ToolCalls, llm.ToolCall{ID: call.ID, Name: call.Function.Name, Arguments: call.Function.Arguments})
+		}
 	} else {
 		for _, o := range w.Output {
+			if o.Type == "function_call" {
+				out.ToolCalls = append(out.ToolCalls, llm.ToolCall{ID: o.CallID, Name: o.Name, Arguments: o.Arguments})
+			}
 			for _, v := range o.Content {
 				if v.Type == "output_text" {
 					out.Content += v.Text
 				}
 			}
 		}
+		var raw struct {
+			Output []json.RawMessage `json:"output"`
+		}
+		if json.Unmarshal(b, &raw) == nil {
+			out.ResponseItems = raw.Output
+		}
+	}
+	if len(out.ToolCalls) > 0 {
+		if len(r.Tools) == 0 || len(out.ToolCalls) > 100 {
+			return out, errors.New("unexpected tool calls")
+		}
+		if (c.cfg.Protocol == llm.ProtocolOpenAIResponses && w.Status != "completed") || (c.cfg.Protocol == llm.ProtocolOpenAIChat && out.FinishReason != "tool_calls") {
+			return out, errors.New("incomplete tool call output")
+		}
+		seen := map[string]bool{}
+		for _, call := range out.ToolCalls {
+			if call.ID == "" || seen[call.ID] || !json.Valid([]byte(call.Arguments)) {
+				return out, errors.New("invalid tool call")
+			}
+			seen[call.ID] = true
+		}
+		return out, nil
 	}
 	if out.Content == "" || (c.cfg.Protocol == llm.ProtocolOpenAIChat && out.FinishReason != "stop") || (c.cfg.Protocol == llm.ProtocolOpenAIResponses && out.FinishReason != "completed") {
 		return out, errors.New("model output incomplete")

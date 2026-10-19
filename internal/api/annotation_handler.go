@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/pzweuj/sepilens/internal/annotation"
 )
@@ -17,11 +18,13 @@ type AnnotationSourcesResponse struct {
 }
 
 type AnnotationSourceStatus struct {
-	ID      string `json:"id"`
-	Enabled bool   `json:"enabled"`
-	Version string `json:"version,omitempty"`
-	License string `json:"license,omitempty"`
-	Note    string `json:"note,omitempty"`
+	Status      string `json:"status"`
+	RetrievedAt string `json:"retrieved_at,omitempty"`
+	ID          string `json:"id"`
+	Enabled     bool   `json:"enabled"`
+	Version     string `json:"version,omitempty"`
+	License     string `json:"license,omitempty"`
+	Note        string `json:"note,omitempty"`
 }
 
 // handleAnnotationValidate normalizes and validates a caller-supplied annotation
@@ -37,10 +40,6 @@ func (s *Server) handleAnnotationValidate(w http.ResponseWriter, r *http.Request
 		return
 	}
 	assembly := normalizeAssembly(req.Variant.Assembly)
-	if err := req.Annotations.Validate(assembly); err != nil {
-		WriteError(w, r, 422, ErrCodeInvalidVariant, err.Error(), false)
-		return
-	}
 	resolver := annotation.NewResolver()
 	if err := resolver.Require(req.Annotations); err != nil {
 		WriteError(w, r, 422, ErrCodeBadRequest, "at least one annotation source is required", false)
@@ -51,6 +50,7 @@ func (s *Server) handleAnnotationValidate(w http.ResponseWriter, r *http.Request
 		WriteError(w, r, 422, ErrCodeInvalidVariant, err.Error(), false)
 		return
 	}
+	normalized.MarkCallerSupplied()
 	writeJSON(w, 200, map[string]any{
 		"assembly":        assembly,
 		"annotations":     normalized,
@@ -65,11 +65,42 @@ func (s *Server) handleAnnotationValidate(w http.ResponseWriter, r *http.Request
 // stay empty when no locked bundle is loaded; the caller must not assume data.
 func (s *Server) handleAnnotationSources(w http.ResponseWriter, r *http.Request) {
 	sources := []AnnotationSourceStatus{
-		{ID: "clinvar", Enabled: s.references != nil || s.coordinator != nil, Note: "caller-supplied or official snapshot; classification is evidence, not a conclusion"},
-		{ID: "gnomad", Enabled: true, Note: "caller-supplied; no bundled dataset, so PM2 requires coverage_adequate"},
-		{ID: "alphamissense", Enabled: true, Note: "caller-supplied; Supporting strength only until calibrated"},
-		{ID: "pangolin", Enabled: true, Note: "caller-supplied; Supporting strength only until calibrated"},
-		{ID: "gencc", Enabled: true, Note: "caller-supplied; Refuted and Disputed block classification"},
+		{ID: "clinvar", Status: "unavailable", Note: "caller inputs remain unverified"},
+		{ID: "gnomad", Status: "unavailable", Note: "caller inputs remain unverified"},
+		{ID: "alphamissense", Status: "unavailable", Note: "engineering thresholds require calibration"},
+		{ID: "pangolin", Status: "unavailable", Note: "no trusted offline adapter configured"},
+		{ID: "gencc", Status: "unavailable", Note: "Refuted and Disputed block classification"},
+	}
+	if s.annotationIndex != nil {
+		for n := range sources {
+			for _, a := range s.annotationIndex.Assets {
+				if a.Kind != sources[n].ID {
+					continue
+				}
+				v := &sources[n]
+				v.Version = a.Version
+				v.License = a.License
+				v.RetrievedAt = a.RetrievedAt
+				v.Enabled = a.LicenseConfirmed
+				v.Status = "found"
+				if !a.LicenseConfirmed {
+					v.Status = "unavailable"
+					continue
+				}
+				at, e := time.Parse(time.RFC3339, a.RetrievedAt)
+				days := a.MaxAgeDays
+				if days == 0 {
+					days = 90
+				}
+				if e != nil || at.After(time.Now()) {
+					v.Enabled = false
+					v.Status = "unavailable"
+				} else if time.Since(at) > time.Duration(days)*24*time.Hour {
+					v.Enabled = false
+					v.Status = "stale"
+				}
+			}
+		}
 	}
 	writeJSON(w, 200, AnnotationSourcesResponse{Sources: sources})
 }

@@ -66,6 +66,17 @@ func TestGraphDetectsCycle(t *testing.T) {
 	}
 }
 
+func TestGraphRejectsSelfEdgeAndDisconnectedHierarchy(t *testing.T) {
+	if _, e := hpo.NewGraph(map[string]hpo.Term{"HP:0000001": {Parents: []string{"HP:0000001"}}}); !errors.Is(e, hpo.ErrGraphCycle) {
+		t.Fatal("self cycle accepted", e)
+	}
+	terms := diamond()
+	terms["HP:9999999"] = hpo.Term{ID: "HP:9999999"}
+	if _, e := hpo.NewGraph(terms); e == nil {
+		t.Fatal("disconnected active root accepted")
+	}
+}
+
 func TestGraphRejectsUnknownParent(t *testing.T) {
 	terms := map[string]hpo.Term{
 		"HP:0000002": {ID: "HP:0000002", Name: "B", Parents: []string{"HP:9999999"}},

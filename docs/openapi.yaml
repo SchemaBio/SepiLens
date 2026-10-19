@@ -1221,6 +1221,114 @@
         }
       }
     },
+    "/v1/phenotype/match": {
+      "post": {
+        "summary": "Versioned phenotype matching and PP4 gates; never a variant classification",
+        "operationId": "post_v1_phenotype_match",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhenotypeAssessment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PhenotypeMatchRequest"
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/variants/snv/evaluations": {
       "post": {
         "summary": "Persist and queue; approved rules required for germline production; unknown origin evidence_only",
@@ -2481,6 +2589,21 @@
               }
             },
             "additionalProperties": false
+          },
+          "ai_assessment": {
+            "$ref": "#/components/schemas/Assessment"
+          },
+          "reconciliation": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/Reconciliation"
+            }
+          },
+          "major_override": {
+            "type": "boolean"
           }
         },
         "additionalProperties": true,
@@ -2527,6 +2650,14 @@
           "reason": {
             "type": "string"
           },
+          "record_hash": {
+            "type": "string"
+          },
+          "query": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Exact snapshot query; caller-provided provenance is never trusted."
+          },
           "score": {
             "type": [
               "number",
@@ -2572,6 +2703,12 @@
       "AnnotationSourceStatus": {
         "type": "object",
         "properties": {
+          "status": {
+            "type": "string"
+          },
+          "retrieved_at": {
+            "type": "string"
+          },
           "id": {
             "type": "string"
           },
@@ -2590,6 +2727,7 @@
         },
         "additionalProperties": false,
         "required": [
+          "status",
           "id",
           "enabled"
         ]
@@ -2653,6 +2791,28 @@
           "direction",
           "status",
           "rationale"
+        ]
+      },
+      "Assessment": {
+        "type": "object",
+        "properties": {
+          "criteria": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/Criterion"
+            }
+          },
+          "classification": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "criteria",
+          "classification"
         ]
       },
       "AuditExport": {
@@ -2849,6 +3009,58 @@
           "clauses",
           "review_required",
           "status"
+        ]
+      },
+      "Candidate": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "direction": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "strength": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "facts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "source_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "missing_information": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "direction",
+          "status",
+          "strength",
+          "reason"
         ]
       },
       "CapabilitiesResponse": {
@@ -3073,6 +3285,17 @@
           "reason": {
             "type": "string"
           },
+          "record_hash": {
+            "type": "string"
+          },
+          "query": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Exact snapshot query; caller-provided provenance is never trusted."
+          },
+          "transcript": {
+            "type": "string"
+          },
           "variation_id": {
             "type": "string"
           },
@@ -3126,6 +3349,168 @@
           "status"
         ]
       },
+      "Criterion": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "strength": {
+            "type": "string"
+          },
+          "change": {
+            "type": "string"
+          },
+          "override_reason": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "citations": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "facts_confirmed": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "strength_basis": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "status",
+          "strength",
+          "change",
+          "override_reason",
+          "rationale",
+          "citations",
+          "facts_confirmed",
+          "strength_basis"
+        ]
+      },
+      "Derivation": {
+        "type": "object",
+        "properties": {
+          "candidates": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/Candidate"
+            }
+          },
+          "gaps": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "conflicts": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "candidates"
+        ]
+      },
+      "DerivedResult": {
+        "type": "object",
+        "properties": {
+          "phenotype": {
+            "$ref": "#/components/schemas/PhenotypeAssessment"
+          },
+          "derivation": {
+            "$ref": "#/components/schemas/Derivation"
+          },
+          "combination_method": {
+            "type": "string"
+          },
+          "points": {
+            "$ref": "#/components/schemas/PointsCombination"
+          },
+          "classification": {
+            "type": "string"
+          },
+          "combination_path": {
+            "type": "string"
+          },
+          "applied_criteria": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AppliedCriterion"
+            }
+          },
+          "rule_conflicts": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "specification_id": {
+            "type": "string"
+          },
+          "is_vcep": {
+            "type": "boolean"
+          },
+          "review_required": {
+            "type": "boolean"
+          },
+          "missing_information": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "derivation",
+          "combination_method"
+        ]
+      },
       "Descriptor": {
         "type": "object",
         "properties": {
@@ -3164,6 +3549,49 @@
           "status",
           "enabled",
           "ruleset_hash"
+        ]
+      },
+      "DiseaseScore": {
+        "type": "object",
+        "properties": {
+          "disease_id": {
+            "type": "string"
+          },
+          "lr_total": {
+            "type": "number"
+          },
+          "log_lr_total": {
+            "type": "number"
+          },
+          "rank": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "margin": {
+            "type": "number"
+          },
+          "specific_terms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "terms": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/TermMatch"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "disease_id",
+          "lr_total",
+          "log_lr_total",
+          "rank",
+          "specific_terms",
+          "terms"
         ]
       },
       "DraftAssessment": {
@@ -3298,6 +3726,13 @@
       "EvaluationOptions": {
         "type": "object",
         "properties": {
+          "annotation_source": {
+            "type": "string",
+            "enum": [
+              "caller_supplied",
+              "sepilens_snapshot"
+            ]
+          },
           "allow_experimental": {
             "type": "boolean"
           },
@@ -3390,6 +3825,12 @@
       "EvaluationResultPayload": {
         "type": "object",
         "properties": {
+          "local_baseline": {
+            "$ref": "#/components/schemas/DerivedResult"
+          },
+          "failure_code": {
+            "type": "string"
+          },
           "revision": {
             "type": "integer",
             "format": "int64"
@@ -3601,7 +4042,14 @@
           "created_at": {
             "type": "string",
             "format": "date-time"
-          }
+          },
+          "hash_version": {
+            "type": "string"
+          },
+          "annotations": {},
+          "phenotype": {},
+          "agent": {},
+          "overrides": {}
         },
         "additionalProperties": false,
         "required": [
@@ -3825,6 +4273,14 @@
           "reason": {
             "type": "string"
           },
+          "record_hash": {
+            "type": "string"
+          },
+          "query": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Exact snapshot query; caller-provided provenance is never trusted."
+          },
           "gene": {
             "type": "string"
           },
@@ -3890,6 +4346,14 @@
           },
           "reason": {
             "type": "string"
+          },
+          "record_hash": {
+            "type": "string"
+          },
+          "query": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Exact snapshot query; caller-provided provenance is never trusted."
           },
           "popmax_af": {
             "type": [
@@ -4124,6 +4588,47 @@
           "is_replayed"
         ]
       },
+      "MatchResult": {
+        "type": "object",
+        "properties": {
+          "dataset_version": {
+            "type": "string"
+          },
+          "ontology_version": {
+            "type": "string"
+          },
+          "translation_version": {
+            "type": "string"
+          },
+          "spec_version": {
+            "type": "string"
+          },
+          "scores": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/DiseaseScore"
+            }
+          },
+          "missing_information": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "dataset_version",
+          "spec_version",
+          "scores"
+        ]
+      },
       "OtherVariant": {
         "type": "object",
         "properties": {
@@ -4141,6 +4646,38 @@
           }
         },
         "additionalProperties": false
+      },
+      "PP4Result": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "strength": {
+            "type": "string"
+          },
+          "gates": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "missing_information": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "strength",
+          "gates"
+        ]
       },
       "Pangolin": {
         "type": "object",
@@ -4183,6 +4720,14 @@
           "reason": {
             "type": "string"
           },
+          "record_hash": {
+            "type": "string"
+          },
+          "query": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Exact snapshot query; caller-provided provenance is never trusted."
+          },
           "score": {
             "type": [
               "number",
@@ -4211,6 +4756,22 @@
           "status"
         ]
       },
+      "PhenotypeAssessment": {
+        "type": "object",
+        "properties": {
+          "match": {
+            "$ref": "#/components/schemas/MatchResult"
+          },
+          "pp4": {
+            "$ref": "#/components/schemas/PP4Result"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "match",
+          "pp4"
+        ]
+      },
       "PhenotypeInput": {
         "type": "object",
         "properties": {
@@ -4229,6 +4790,30 @@
         },
         "additionalProperties": false
       },
+      "PhenotypeMatchRequest": {
+        "type": "object",
+        "properties": {
+          "gene": {
+            "type": "string"
+          },
+          "disease_id": {
+            "type": "string"
+          },
+          "inheritance": {
+            "type": "string"
+          },
+          "phenotype": {
+            "$ref": "#/components/schemas/PhenotypeInput"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "gene",
+          "disease_id",
+          "inheritance",
+          "phenotype"
+        ]
+      },
       "PhenotypeTerm": {
         "type": "object",
         "properties": {
@@ -4245,6 +4830,46 @@
         "additionalProperties": false,
         "required": [
           "id"
+        ]
+      },
+      "PointsCombination": {
+        "type": "object",
+        "properties": {
+          "classification": {
+            "type": "string"
+          },
+          "pathogenic_points": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "benign_points": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "conflict": {
+            "type": "boolean"
+          },
+          "applied_codes": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "spec_version": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "classification",
+          "pathogenic_points",
+          "benign_points",
+          "conflict",
+          "applied_codes",
+          "spec_version"
         ]
       },
       "Population": {
@@ -4439,6 +5064,32 @@
           "protocol"
         ]
       },
+      "Reconciliation": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "local": {
+            "$ref": "#/components/schemas/Candidate"
+          },
+          "proposed": {
+            "$ref": "#/components/schemas/Criterion"
+          },
+          "accepted": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "accepted",
+          "reason"
+        ]
+      },
       "Relative": {
         "type": "object",
         "properties": {
@@ -4524,9 +5175,12 @@
         ]
       },
       "RuleEngineResult": {
-        "oneOf": [
+        "anyOf": [
           {
             "$ref": "#/components/schemas/EvaluationOutput"
+          },
+          {
+            "$ref": "#/components/schemas/DerivedResult"
           },
           {
             "$ref": "#/components/schemas/CNVRuleResult"
@@ -4535,7 +5189,7 @@
             "type": "null"
           }
         ],
-        "description": "Null in evidence_only/simulation/experimental. Only fully verified applicable evidence contributes. CNV score is fixed-point hundredths."
+        "description": "Deterministic classification; null outside approved production. AI classifications are ignored."
       },
       "SNVContext": {
         "type": "object",
@@ -4843,6 +5497,53 @@
           "full_text_available",
           "validation_status",
           "case_count"
+        ]
+      },
+      "TermMatch": {
+        "type": "object",
+        "properties": {
+          "hpo": {
+            "type": "string"
+          },
+          "polarity": {
+            "type": "string"
+          },
+          "match": {
+            "type": "string"
+          },
+          "disease_term": {
+            "type": "string"
+          },
+          "frequency": {
+            "type": "number"
+          },
+          "background": {
+            "type": "number"
+          },
+          "lr": {
+            "type": "number"
+          },
+          "information_content": {
+            "type": "number"
+          },
+          "conflict": {
+            "type": "boolean"
+          },
+          "ignored": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "hpo",
+          "polarity",
+          "match",
+          "frequency",
+          "background",
+          "lr",
+          "information_content",
+          "conflict",
+          "ignored"
         ]
       },
       "Testing": {

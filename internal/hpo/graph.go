@@ -59,6 +59,9 @@ func NewGraph(terms map[string]Term) (*Graph, error) {
 			}
 		}
 		for _, parent := range term.Parents {
+			if normalizeID(parent) == id {
+				return nil, fmt.Errorf("%w: self edge %s", ErrGraphCycle, id)
+			}
 			if parent = normalizeID(parent); parent != "" && parent != id {
 				g.parents[id] = append(g.parents[id], parent)
 			}
@@ -154,6 +157,33 @@ func (g *Graph) validate() error {
 		}
 	}
 	sort.Strings(g.roots)
+	if g.complete {
+		var activeRoots []string
+		for _, id := range g.roots {
+			if !g.terms[id].Obsolete {
+				activeRoots = append(activeRoots, id)
+			}
+		}
+		if len(activeRoots) != 1 {
+			return errors.New("hpo hierarchy requires one active root")
+		}
+		seen := map[string]bool{}
+		queue := []string{activeRoots[0]}
+		for len(queue) > 0 {
+			id := queue[0]
+			queue = queue[1:]
+			if seen[id] {
+				continue
+			}
+			seen[id] = true
+			queue = append(queue, g.children[id]...)
+		}
+		for id, t := range g.terms {
+			if !t.Obsolete && !seen[id] {
+				return errors.New("hpo term is unreachable from the active root")
+			}
+		}
+	}
 	return nil
 }
 

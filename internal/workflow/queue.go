@@ -19,6 +19,13 @@ import (
 var ErrConflict = errors.New("idempotency conflict")
 
 type Handler func(context.Context, Task) (any, *evidence.EvidenceSnapshot, error)
+
+// PartialFailure allows an audited local baseline to survive an AI failure.
+// Codes are application-owned constants; provider bodies must never reach here.
+type PartialFailure struct{ Code string }
+
+func (p *PartialFailure) Error() string { return p.Code }
+
 type Task struct {
 	JobID, TenantID, EngineID, Kind string
 	Payload                         []byte
@@ -268,7 +275,8 @@ func (q *Queue) fail(ctx context.Context, t Task, owner, msg string) error {
 	return tx.Commit()
 }
 func (q *Queue) complete(ctx context.Context, t Task, owner string, result any, snapshot *evidence.EvidenceSnapshot, problem error) error {
-	if problem != nil {
+	var partial *PartialFailure
+	if problem != nil && (!errors.As(problem, &partial) || result == nil || snapshot == nil) {
 		return q.fail(ctx, t, owner, "execution failed")
 	}
 	b, e := json.Marshal(result)
@@ -284,7 +292,23 @@ func (q *Queue) complete(ctx context.Context, t Task, owner string, result any, 
 		return e
 	}
 	defer tx.Rollback()
-	res, e := tx.ExecContext(ctx, `UPDATE jobs SET status='succeeded',stage='completed',progress=100,result_json=?,updated_at=? WHERE job_id=? AND tenant_id=? AND status='running' AND EXISTS(SELECT 1 FROM work_inputs WHERE job_id=? AND owner=?)`, enc, time.Now().UTC().Format(time.RFC3339Nano), t.JobID, t.TenantID, t.JobID, owner)
+	status, stage := "succeeded", "completed"
+	var errorJSON any
+	if partial != nil {
+		status, stage = "failed", "failed"
+		code := partial.Code
+		switch code {
+		case "AI_OUTPUT_INVALID", "AI_PROVIDER_UNAVAILABLE", "AI_TOOL_BUDGET_EXCEEDED":
+		default:
+			code = "EXECUTION_FAILED"
+		}
+		raw, _ := json.Marshal(map[string]any{"code": code, "regeneration_required": true})
+		errorJSON, e = q.Cipher.Seal(string(raw), t.TenantID+":"+t.JobID+":error")
+		if e != nil {
+			return e
+		}
+	}
+	res, e := tx.ExecContext(ctx, `UPDATE jobs SET status=?,stage=?,progress=100,result_json=?,error_json=?,updated_at=? WHERE job_id=? AND tenant_id=? AND status='running' AND EXISTS(SELECT 1 FROM work_inputs WHERE job_id=? AND owner=?)`, status, stage, enc, errorJSON, time.Now().UTC().Format(time.RFC3339Nano), t.JobID, t.TenantID, t.JobID, owner)
 	if e != nil {
 		return e
 	}
@@ -300,7 +324,7 @@ func (q *Queue) complete(ctx context.Context, t Task, owner string, result any, 
 			return e
 		}
 	}
-	if e = event(ctx, tx, t.JobID, "completed"); e != nil {
+	if e = event(ctx, tx, t.JobID, stage); e != nil {
 		return e
 	}
 	return tx.Commit()

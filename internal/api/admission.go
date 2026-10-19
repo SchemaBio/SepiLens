@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/pzweuj/sepilens/internal/annotation"
 	"github.com/pzweuj/sepilens/internal/engine"
@@ -20,16 +21,19 @@ import (
 )
 
 type SNVEvaluationRequest struct {
-	DraftAssessment *svcv4.DraftAssessment  `json:"draft_assessment,omitempty"`
-	Evidence        []evidence.EvidenceItem `json:"evidence,omitempty"`
-	Sources         []evidence.Source       `json:"sources,omitempty"`
-	EngineID        string                  `json:"engine_id"`
-	Mode            string                  `json:"mode,omitempty"`
-	Variant         SNVVariant              `json:"variant"`
-	ClinicalContext SNVContext              `json:"clinical_context"`
-	Phenotype       *PhenotypeInput         `json:"phenotype,omitempty"`
-	Annotations     *annotation.Set         `json:"annotations,omitempty"`
-	Options         EvaluationOptions       `json:"options"`
+	assessmentTime   time.Time
+	snapshotResolved bool
+	phenotypeResult  *PhenotypeAssessment
+	DraftAssessment  *svcv4.DraftAssessment  `json:"draft_assessment,omitempty"`
+	Evidence         []evidence.EvidenceItem `json:"evidence,omitempty"`
+	Sources          []evidence.Source       `json:"sources,omitempty"`
+	EngineID         string                  `json:"engine_id"`
+	Mode             string                  `json:"mode,omitempty"`
+	Variant          SNVVariant              `json:"variant"`
+	ClinicalContext  SNVContext              `json:"clinical_context"`
+	Phenotype        *PhenotypeInput         `json:"phenotype,omitempty"`
+	Annotations      *annotation.Set         `json:"annotations,omitempty"`
+	Options          EvaluationOptions       `json:"options"`
 }
 
 const (
@@ -100,6 +104,7 @@ type CNVContext struct {
 }
 
 type EvaluationOptions struct {
+	AnnotationSource   string `json:"annotation_source,omitempty"`
 	AllowExperimental  bool   `json:"allow_experimental,omitempty"`
 	AllowLocalFallback bool   `json:"allow_local_fallback,omitempty"`
 	RetrievalMode      string `json:"retrieval_mode,omitempty"`
@@ -143,6 +148,9 @@ func validateSNVAdmission(req *SNVEvaluationRequest) (status int, code ErrorCode
 	}
 	if !oneOf(req.Options.CombinationMethod, "", "acmg_2015_table", "svi_points") {
 		return http.StatusUnprocessableEntity, ErrCodeBadRequest, "invalid combination_method", false
+	}
+	if !oneOf(req.Options.AnnotationSource, "", "caller_supplied", "sepilens_snapshot") || (req.Options.AnnotationSource == "sepilens_snapshot" && req.Annotations != nil) {
+		return 422, ErrCodeBadRequest, "invalid annotation_source or mixed snapshot and caller annotations", false
 	}
 	if req.Options.MaxSearches < 0 || req.Options.MaxSearches > 100 {
 		return http.StatusUnprocessableEntity, ErrCodeBadRequest, "max_searches must be between 0 and 100", false
@@ -193,13 +201,28 @@ func validateSNVAdmission(req *SNVEvaluationRequest) (status int, code ErrorCode
 	if req.Mode == ModeAIAssisted && desc.ID != engine.EngineACMG2015 {
 		return 422, ErrCodeBadRequest, "ai_assisted mode currently supports acmg_amp_2015 only", false
 	}
+	if req.Mode == ModeAIAssisted && req.Annotations == nil && req.Options.AnnotationSource != "sepilens_snapshot" {
+		return 422, ErrCodeBadRequest, "AI assessment requires annotations or a snapshot selection", false
+	}
+	if req.Annotations != nil || req.Options.AnnotationSource == "sepilens_snapshot" {
+		if !regexp.MustCompile(`^(?i:chr)?([1-9]|1[0-9]|2[0-2])$`).MatchString(req.Variant.Chrom) {
+			return 422, ErrCodeInvalidVariant, "annotation derivation currently supports autosomal SNV/InDel only", false
+		}
+	}
 	if code, msg := validatePhenotype(req.Phenotype); code != "" {
 		return 422, code, msg, false
 	}
 	if req.Annotations != nil {
-		if err := req.Annotations.Validate(req.Variant.Assembly); err != nil {
+		normalized, err := annotation.NewResolver().Normalize(req.Annotations, req.Variant.Assembly)
+		if err != nil {
 			return 422, ErrCodeInvalidVariant, err.Error(), false
 		}
+		normalized.Source = annotation.SourceCaller
+		normalized.MarkCallerSupplied()
+		if err = annotation.NewResolver().Require(normalized); err != nil {
+			return 422, ErrCodeBadRequest, "at least one annotation source is required", false
+		}
+		req.Annotations = normalized
 	}
 	req.Variant.Assembly = normalizeAssembly(req.Variant.Assembly)
 
@@ -345,6 +368,12 @@ func (s *Server) processSNVEvaluation(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		WriteError(w, r, status, code, msg, false)
 		return
+	}
+	if req.Phenotype != nil && req.Phenotype.Source == "clinician_verified" {
+		p := principal(r)
+		if p.Role != "reviewer" && p.Role != "admin" {
+			req.Phenotype.Source = "caller_supplied"
+		}
 	}
 	if reference := s.references[req.Variant.Assembly]; reference != nil {
 		bases, e := reference.Bases(req.Variant.Chrom, req.Variant.Pos, len(req.Variant.Ref))

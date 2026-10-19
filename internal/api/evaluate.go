@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"github.com/pzweuj/sepilens/internal/annotation"
 	"github.com/pzweuj/sepilens/internal/evidence"
 	"github.com/pzweuj/sepilens/internal/rules/acmg2015"
 	"github.com/pzweuj/sepilens/internal/rules/cnvgain2020"
@@ -49,8 +48,10 @@ func (s *Server) evaluate(in envelope, sources []evidence.Source, items []eviden
 			// Annotations supply the criterion facts; caller evidence items are not
 			// mixed in, because a caller cannot pre-satisfy a derived criterion.
 			derived := acmg2015.Derive(r.Annotations, v, c, deriveOptions(r))
-			out := s.acmgEvaluator.EvaluateEvidence(v, c, derived.Applied(), annotationSources(r, derived))
-			return DerivedResult{EvaluationOutput: out, Derivation: derived, CombinationMethod: combinationMethod(r.Options), Points: pointsFor(r.Options, derived)}
+			if p := r.phenotypeResult; p != nil {
+				derived.Candidates = append(derived.Candidates, acmg2015.Candidate{Code: acmg2015.CodePP4, Direction: acmg2015.DirectionPathogenic, Status: acmg2015.CriterionStatus(p.PP4.Status), Strength: acmg2015.StrengthSupporting, Reason: "versioned phenotype score and ten PP4 gates", Facts: map[string]bool{"highly_specific_phenotype": p.PP4.Status == "met", "single_genetic_etiology": p.PP4.Gates["single_cause"]}, MissingInformation: p.PP4.Missing, SourceIDs: []string{"phenotype:" + p.Match.SpecVersion}})
+			}
+			return s.evaluateDerivation(r, derived, annotationSources(r, derived))
 		}
 		return s.acmgEvaluator.EvaluateEvidence(v, c, criteria, sources)
 	}
@@ -71,6 +72,7 @@ func (s *Server) evaluate(in envelope, sources []evidence.Source, items []eviden
 // DerivedResult keeps the deterministic evaluation and its annotation provenance
 // together, so callers can audit every criterion against its source record.
 type DerivedResult struct {
+	Phenotype *PhenotypeAssessment `json:"phenotype,omitempty"`
 	acmg2015.EvaluationOutput
 	Derivation        acmg2015.Derivation         `json:"derivation"`
 	CombinationMethod string                      `json:"combination_method"`
@@ -81,10 +83,6 @@ func deriveOptions(r *SNVEvaluationRequest) acmg2015.DeriveOptions {
 	opts := acmg2015.DeriveOptions{AllowPP5BP6: r.Options.AllowPP5BP6}
 	// PVS1 attestations are supplied as explicit facts; they are never inferred
 	// from GenCC validity or from the gene name.
-	if r.Annotations != nil && r.Annotations.GenCC != nil && r.Annotations.GenCC.GenCCSupports() {
-		opts.PVS1MechanismConfirmed = r.Annotations.GenCC.GenCCSupports()
-	}
-	opts.TranscriptRelevant = r.Variant.Transcript != ""
 	return opts
 }
 
@@ -110,7 +108,7 @@ func annotationSources(r *SNVEvaluationRequest, d acmg2015.Derivation) []evidenc
 	if r.Annotations == nil {
 		return nil
 	}
-	trusted := r.Annotations.Source == annotation.SourceSnapshot || r.Annotations.Source == annotation.SourceAPI
+	trusted := r.snapshotResolved
 	var out []evidence.Source
 	seen := map[string]bool{}
 	for _, c := range d.Candidates {
@@ -122,12 +120,18 @@ func annotationSources(r *SNVEvaluationRequest, d acmg2015.Derivation) []evidenc
 				continue
 			}
 			seen[id] = true
-			src := evidence.Source{ID: id, Type: evidence.SourceTypeCuratedSnapshot, Title: id, DatasetVersion: r.Annotations.Source.String(), IdentifierValid: true, RecordExists: true}
-			if trusted {
+			version := strings.SplitN(id, ":", 2)
+			datasetVersion := ""
+			if len(version) == 2 {
+				datasetVersion = version[1]
+			}
+			src := evidence.Source{ID: id, Type: evidence.SourceTypeCuratedSnapshot, Title: id, DatasetVersion: datasetVersion, IdentifierValid: true, RecordExists: true}
+			if (trusted && usableAnnotationSource(r.Annotations, id)) || (strings.HasPrefix(id, "phenotype:") && r.phenotypeResult != nil && r.phenotypeResult.PP4.Status == "met") {
 				src.ObjectMatched = true
 				src.MaterialVerified = true
 				src.ValidationStatus = evidence.ValidationVerified
 			} else {
+				src.RecordExists = false
 				src.ValidationStatus = evidence.ValidationUnverified
 			}
 			out = append(out, src)

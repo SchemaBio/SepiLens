@@ -27,8 +27,8 @@ func Reencrypt(ctx context.Context, db *sql.DB, old, new *Cipher, allowLegacy bo
 		}},
 		{"work_inputs", []string{"tenant_id", "job_id"}, []string{"payload"}, func(k []string, i int) string { return k[0] + ":" + k[1] + ":input" }},
 		{"reviews", []string{"tenant_id", "evaluation_id", "id"}, []string{"reason"}, func(k []string, i int) string { return k[0] + ":" + k[1] + ":review" }},
-		{"evidence_snapshots", []string{"tenant_id", "snapshot_id"}, []string{"sources_json", "items_json", "provenance_json"}, func(k []string, i int) string {
-			return k[0] + ":" + k[1] + ":" + []string{"sources", "items", "provenance"}[i]
+		{"evidence_snapshots", []string{"tenant_id", "snapshot_id"}, []string{"sources_json", "items_json", "provenance_json", "extensions_json"}, func(k []string, i int) string {
+			return k[0] + ":" + k[1] + ":" + []string{"sources", "items", "provenance", "extensions"}[i]
 		}},
 		{"provider_profiles", []string{"tenant_id", "profile_id", "version"}, []string{"config"}, func(k []string, i int) string { return k[0] + ":" + k[1] + ":profile" }},
 		{"audit_versions", []string{"tenant_id", "evaluation_id", "version"}, []string{"payload"}, func(k []string, i int) string { return k[0] + ":" + k[1] + ":result" }},

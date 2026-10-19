@@ -1,9 +1,11 @@
 package annotation
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 )
 
 // Resolver validates a caller-supplied annotation set and produces a normalized
@@ -13,10 +15,11 @@ type Resolver struct {
 	MinAlleleNumber int
 	// Now is an injectable clock for staleness checks (RFC3339 input).
 	MaxAgeDays int
+	Now        func() time.Time
 }
 
 func NewResolver() *Resolver {
-	return &Resolver{MinAlleleNumber: 1000, MaxAgeDays: 0}
+	return &Resolver{MinAlleleNumber: 1000, MaxAgeDays: 90, Now: time.Now}
 }
 
 // Normalize validates and copies the set, filling defaults and flagging conflicts.
@@ -24,7 +27,15 @@ func (r *Resolver) Normalize(in *Set, assembly string) (*Set, error) {
 	if in == nil {
 		return nil, nil
 	}
-	out := *in
+	// Copy before validation: validation and normalization fill defaults.
+	data, err := json.Marshal(in)
+	if err != nil {
+		return nil, err
+	}
+	var out Set
+	if err = json.Unmarshal(data, &out); err != nil {
+		return nil, err
+	}
 	if out.Source == "" {
 		out.Source = SourceCaller
 	}
@@ -35,6 +46,27 @@ func (r *Resolver) Normalize(in *Set, assembly string) (*Set, error) {
 	applySource := func(record *Record) {
 		if record != nil && record.Source == "" {
 			record.Source = out.Source
+		}
+		if record != nil && record.RetrievedAt != "" {
+			at, err := time.Parse(time.RFC3339, record.RetrievedAt)
+			if err != nil {
+				record.Status = StatusUnavailable
+				record.Reason = "invalid retrieval timestamp"
+				return
+			}
+			now := time.Now()
+			if r.Now != nil {
+				now = r.Now()
+			}
+			if at.After(now) {
+				record.Status = StatusUnavailable
+				record.Reason = "retrieval timestamp is in the future"
+				return
+			}
+			if r.MaxAgeDays > 0 && now.Sub(at) > time.Duration(r.MaxAgeDays)*24*time.Hour {
+				record.Status = StatusStale
+				record.Reason = "annotation exceeds configured maximum age"
+			}
 		}
 	}
 	applySource(recClinVar(out.ClinVar))

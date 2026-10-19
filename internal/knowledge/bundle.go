@@ -9,8 +9,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/pzweuj/sepilens/internal/annotation"
 	"github.com/pzweuj/sepilens/internal/engine"
 	"github.com/pzweuj/sepilens/internal/hpo"
+	"github.com/pzweuj/sepilens/internal/phenotype"
 	"github.com/pzweuj/sepilens/internal/variant/cnv"
 	"io"
 	"net/http"
@@ -24,23 +26,35 @@ import (
 )
 
 type Asset struct {
-	Path          string `json:"path"`
-	URL           string `json:"url"`
-	SHA256        string `json:"sha256"`
-	Version       string `json:"version"`
-	License       string `json:"license"`
-	Kind          string `json:"kind"`
-	Assembly      string `json:"assembly,omitempty"`
-	Complete      bool   `json:"complete,omitempty"`
-	RetrievedAt   string `json:"retrieved_at,omitempty"`
-	DerivedPath   string `json:"derived_path,omitempty"`
-	DerivedSHA256 string `json:"derived_sha256,omitempty"`
+	Format           string `json:"format,omitempty"`
+	LicenseConfirmed bool   `json:"license_confirmed,omitempty"`
+	MaxAgeDays       int    `json:"max_age_days,omitempty"`
+	Path             string `json:"path"`
+	URL              string `json:"url"`
+	SHA256           string `json:"sha256"`
+	Version          string `json:"version"`
+	License          string `json:"license"`
+	Kind             string `json:"kind"`
+	Assembly         string `json:"assembly,omitempty"`
+	Complete         bool   `json:"complete,omitempty"`
+	RetrievedAt      string `json:"retrieved_at,omitempty"`
+	DerivedPath      string `json:"derived_path,omitempty"`
+	DerivedSHA256    string `json:"derived_sha256,omitempty"`
 }
 type Manifest struct {
-	Version string  `json:"version"`
-	Assets  []Asset `json:"assets"`
+	AnnotationIndex *DerivedIndex `json:"annotation_index,omitempty"`
+	Version         string        `json:"version"`
+	Assets          []Asset       `json:"assets"`
+}
+
+type DerivedIndex struct {
+	Path      string `json:"path"`
+	SHA256    string `json:"sha256"`
+	InputHash string `json:"input_hash"`
 }
 type Bundle struct {
+	Phenotype   *phenotype.Dataset
+	Annotations *annotation.Index
 	Manifest    Manifest
 	Hash        string
 	Regions     []cnv.DosageRegion
@@ -94,13 +108,17 @@ func ReadManifest(file string) (Manifest, []byte, error) {
 	if e = d.Decode(&m); e != nil {
 		return m, b, e
 	}
+	var extra any
+	if d.Decode(&extra) != io.EOF {
+		return m, b, errors.New("trailing manifest content")
+	}
 	if m.Version == "" || len(m.Assets) == 0 {
 		return m, b, errors.New("versioned assets required")
 	}
 	seen := map[string]bool{}
 	for _, a := range m.Assets {
 		u, e := url.Parse(a.URL)
-		official := e == nil && u.Scheme == "https" && (u.Hostname() == "ftp.ncbi.nlm.nih.gov" || u.Hostname() == "search.clinicalgenome.org" || u.Hostname() == "ftp.clinicalgenome.org" || (u.Hostname() == "raw.githubusercontent.com" && strings.HasPrefix(u.Path, "/obophenotype/human-phenotype-ontology/")))
+		official := e == nil && u.Scheme == "https" && officialAssetURL(u)
 		if !official || u.User != nil || u.Fragment != "" || a.Version == "" || a.License == "" || len(a.SHA256) != 64 || seen[a.Path] {
 			return m, b, errors.New("asset requires official HTTPS source, version, checksum and license")
 		}
@@ -109,10 +127,18 @@ func ReadManifest(file string) (Manifest, []byte, error) {
 		}
 		switch a.Kind {
 		case "hpo_obo", "refseq_gff", "clingen_tsv", "reference_fasta":
+		case "hpo_translation":
+			if a.Format != "hpo-translation-v1" {
+				return m, b, errors.New("unsupported translation format")
+			}
+		case "hpoa", "gencc_tsv", "alphamissense_tsv", "gnomad_tsv", "clinvar_snapshot":
+			if !validAnnotationFormat(a) || a.RetrievedAt == "" || a.MaxAgeDays < 0 {
+				return m, b, errors.New("locked annotation format and retrieval date required")
+			}
 		default:
 			return m, b, errors.New("unsupported asset kind")
 		}
-		if a.Kind != "hpo_obo" && a.Assembly != "GRCh37" && a.Assembly != "GRCh38" {
+		if a.Kind != "hpo_obo" && a.Kind != "hpo_translation" && a.Kind != "hpoa" && a.Kind != "gencc_tsv" && a.Assembly != "GRCh37" && a.Assembly != "GRCh38" {
 			return m, b, errors.New("assembly required")
 		}
 		seen[a.Path] = true
@@ -221,20 +247,42 @@ func Import(ctx context.Context, manifest, dir string, client *http.Client) erro
 	if e != nil {
 		return e
 	}
-	if e = os.WriteFile(filepath.Join(dir, "manifest.json"), b, 0600); e != nil {
+	if e = buildAnnotationIndex(ctx, dir, &m); e != nil {
 		return e
 	}
-	bundle, e := Load(dir)
+	b, e = json.MarshalIndent(m, "", "  ")
 	if e != nil {
+		return e
+	}
+	bundle, e := loadBundle(dir, m, b)
+	if e != nil {
+		return e
+	}
+	if bundle.Annotations != nil {
+		defer bundle.Annotations.Close()
+	}
+	file, e := os.CreateTemp(dir, ".manifest-*.partial")
+	if e != nil {
+		return e
+	}
+	defer os.Remove(file.Name())
+	_, e = file.Write(b)
+	if e == nil {
+		e = file.Sync()
+	}
+	closeErr := file.Close()
+	if e != nil {
+		return e
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	if e = os.Rename(file.Name(), filepath.Join(dir, "manifest.json")); e != nil {
 		return e
 	}
 	for _, a := range m.Assets {
 		if a.Kind == "hpo_obo" {
-			p, _ := path(dir, a.Path)
-			terms, e := parseOBO(p)
-			if e != nil {
-				return e
-			}
+			terms := bundle.HPO
 			b, _ := json.Marshal(terms)
 			if e = os.MkdirAll(filepath.Join(dir, "hpo"), 0700); e != nil {
 				return e
@@ -297,8 +345,39 @@ func Load(dir string) (*Bundle, error) {
 	if e != nil {
 		return nil, e
 	}
+	return loadBundle(dir, m, b)
+}
+
+func loadBundle(dir string, m Manifest, b []byte) (*Bundle, error) {
+	var e error
 	r := &Bundle{Manifest: m, Hash: engine.Hash(b), Dir: dir, References: map[string]*Reference{}}
+	loaded := false
+	defer func() {
+		if !loaded && r.Annotations != nil {
+			r.Annotations.Close()
+		}
+	}()
+	if hasAnnotationAssets(m) {
+		if m.AnnotationIndex == nil || m.AnnotationIndex.InputHash != annotationBinding(m) {
+			return nil, errors.New("annotation assets must be imported")
+		}
+		indexPath, err := path(dir, m.AnnotationIndex.Path)
+		if err != nil {
+			return nil, err
+		}
+		if err = verify(indexPath, m.AnnotationIndex.SHA256); err != nil {
+			return nil, err
+		}
+		r.Annotations, e = annotation.OpenIndex(indexPath, m.AnnotationIndex.InputHash)
+		if e != nil {
+			return nil, e
+		}
+	}
 	coverage := map[string]map[string]bool{}
+	var associations []phenotype.Association
+	var translations map[string]hpo.Term
+	var hpoaVersion string
+	var hpoaValidUntil time.Time
 	for _, a := range m.Assets {
 		p, e := path(dir, a.Path)
 		if e != nil {
@@ -308,6 +387,43 @@ func Load(dir string) (*Bundle, error) {
 			return nil, e
 		}
 		switch a.Kind {
+		case "hpo_translation":
+			input, err := reader(p)
+			if err != nil {
+				return nil, err
+			}
+			decoder := json.NewDecoder(input)
+			decoder.DisallowUnknownFields()
+			err = decoder.Decode(&translations)
+			input.Close()
+			if err != nil {
+				return nil, err
+			}
+			if !a.LicenseConfirmed {
+				translations = nil
+			} else {
+				r.HPOVersions.TranslationVersion = a.Version
+			}
+		case "hpoa":
+			input, err := reader(p)
+			if err != nil {
+				return nil, err
+			}
+			rows, err := phenotype.ParseHPOA(input)
+			input.Close()
+			if err != nil {
+				return nil, err
+			}
+			at, dateErr := time.Parse(time.RFC3339, a.RetrievedAt)
+			days := a.MaxAgeDays
+			if days == 0 {
+				days = 90
+			}
+			if a.LicenseConfirmed && dateErr == nil && !at.After(time.Now()) {
+				associations = append(associations, rows...)
+				hpoaVersion = a.Version
+				hpoaValidUntil = at.Add(time.Duration(days) * 24 * time.Hour)
+			}
 		case "hpo_obo":
 			terms, e := parseOBO(p)
 			if e != nil {
@@ -359,6 +475,13 @@ func Load(dir string) (*Bundle, error) {
 		}
 	}
 	sort.Strings(r.Complete)
+	for id, translated := range translations {
+		if term, ok := r.HPO[id]; ok {
+			term.NameCN = translated.NameCN
+			term.DefinitionCN = translated.DefinitionCN
+			r.HPO[id] = term
+		}
+	}
 	if len(r.HPO) > 0 {
 		// A translation-only asset yields a flat graph; callers must check Graph.Complete().
 		graph, e := hpo.NewGraph(r.HPO)
@@ -367,6 +490,16 @@ func Load(dir string) (*Bundle, error) {
 		}
 		r.Graph = graph
 	}
+	if len(associations) > 0 {
+		r.Phenotype, e = phenotype.NewDataset(r.Graph, associations, hpoaVersion)
+		if e != nil {
+			return nil, e
+		}
+		r.Phenotype.OntologyVersion = r.HPOVersions.OntologyVersion
+		r.Phenotype.TranslationVersion = r.HPOVersions.TranslationVersion
+		r.Phenotype.ValidUntil = hpoaValidUntil
+	}
+	loaded = true
 	return r, nil
 }
 func attrs(s string) map[string]string {
@@ -536,6 +669,7 @@ func parseOBO(p string) (map[string]hpo.Term, error) {
 	defer f.Close()
 	terms := map[string]hpo.Term{}
 	var term hpo.Term
+	inTerm := false
 	flush := func() {
 		if term.ID != "" {
 			terms[term.ID] = term
@@ -546,8 +680,12 @@ func parseOBO(p string) (map[string]hpo.Term, error) {
 	sc.Buffer(make([]byte, 4096), 2<<20)
 	for sc.Scan() {
 		l := sc.Text()
-		if l == "[Term]" {
+		if strings.HasPrefix(l, "[") && strings.HasSuffix(l, "]") {
 			flush()
+			inTerm = l == "[Term]"
+			continue
+		}
+		if !inTerm {
 			continue
 		}
 		kv := strings.SplitN(l, ": ", 2)

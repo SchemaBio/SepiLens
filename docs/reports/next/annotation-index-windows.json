@@ -1,0 +1,16 @@
+{
+  "arch": "amd64",
+  "cold_query_ms": 0,
+  "cpu": "AMD64 Family 23 Model 113 Stepping 0, AuthenticAMD",
+  "go_version": "go1.26.2",
+  "import_ms": 22314.288,
+  "index_bytes": 199831552,
+  "logical_cpus": 16,
+  "os": "windows",
+  "passed": true,
+  "peak_sampled_go_heap_bytes": 4485592,
+  "rows": 1000000,
+  "samples": 300,
+  "scope": "synthetic indexed records, complete five-source resolution, no network",
+  "warm_p95_ms": 0.96
+}
