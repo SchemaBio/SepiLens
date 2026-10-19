@@ -41,13 +41,22 @@ type Manifest struct {
 	Assets  []Asset `json:"assets"`
 }
 type Bundle struct {
-	Manifest   Manifest
-	Hash       string
-	Regions    []cnv.DosageRegion
-	Complete   []string
-	Dir        string
-	HPO        map[string]hpo.Term
-	References map[string]*Reference
+	Manifest    Manifest
+	Hash        string
+	Regions     []cnv.DosageRegion
+	Complete    []string
+	Dir         string
+	HPO         map[string]hpo.Term
+	Graph       *hpo.Graph
+	HPOVersions HPOAssetVersions
+	References  map[string]*Reference
+}
+
+// HPOAssetVersions records the ontology and translation revisions separately so a
+// change in either one changes the dataset hash.
+type HPOAssetVersions struct {
+	OntologyVersion    string `json:"ontology_version,omitempty"`
+	TranslationVersion string `json:"translation_version,omitempty"`
 }
 
 func path(dir, name string) (string, error) {
@@ -305,6 +314,7 @@ func Load(dir string) (*Bundle, error) {
 				return nil, e
 			}
 			r.HPO = terms
+			r.HPOVersions.OntologyVersion = a.Version
 		case "reference_fasta":
 			if strings.HasSuffix(p, ".gz") {
 				if a.DerivedPath == "" || a.DerivedSHA256 == "" {
@@ -349,6 +359,14 @@ func Load(dir string) (*Bundle, error) {
 		}
 	}
 	sort.Strings(r.Complete)
+	if len(r.HPO) > 0 {
+		// A translation-only asset yields a flat graph; callers must check Graph.Complete().
+		graph, e := hpo.NewGraph(r.HPO)
+		if e != nil {
+			return nil, e
+		}
+		r.Graph = graph
+	}
 	return r, nil
 }
 func attrs(s string) map[string]string {
@@ -539,6 +557,16 @@ func parseOBO(p string) (map[string]hpo.Term, error) {
 		switch kv[0] {
 		case "id":
 			term.ID = kv[1]
+		case "alt_id":
+			if id := strings.TrimSpace(kv[1]); id != "" {
+				term.AltIDs = append(term.AltIDs, id)
+			}
+		case "is_a":
+			// OBO is_a lines may carry a trailing qualifier, e.g. "HP:0000001 ! All".
+			parent := strings.TrimSpace(strings.SplitN(kv[1], "!", 2)[0])
+			if parent != "" {
+				term.Parents = append(term.Parents, parent)
+			}
 		case "name":
 			term.Name = kv[1]
 		case "def":

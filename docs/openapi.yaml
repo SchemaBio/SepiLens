@@ -1022,6 +1022,205 @@
         }
       }
     },
+    "/v1/annotations/validate": {
+      "post": {
+        "summary": "Normalize and validate caller-supplied annotations without classifying",
+        "operationId": "post_v1_annotations_validate",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnotationRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/annotations/sources": {
+      "get": {
+        "summary": "Available annotation sources and their settlement status",
+        "operationId": "get_v1_annotations_sources",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnotationSourcesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error; 409 includes disabled rules or idempotency/review conflicts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/variants/snv/evaluations": {
       "post": {
         "summary": "Persist and queue; approved rules required for germline production; unknown origin evidence_only",
@@ -2287,6 +2486,132 @@
         "additionalProperties": true,
         "description": "Untrusted suggestions. Legacy unverified data may be wrapped here; it never substitutes for rule_engine_result."
       },
+      "AlphaMissense": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "caller_supplied",
+              "sepilens_snapshot",
+              "sepilens_api"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "description": "Locked data source version; required."
+          },
+          "assembly": {
+            "type": "string",
+            "enum": [
+              "GRCh37",
+              "GRCh38"
+            ],
+            "description": "Must match variant assembly exactly."
+          },
+          "retrieved_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "found",
+              "not_found",
+              "conflicting",
+              "unavailable",
+              "stale",
+              "caller_supplied"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "score": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "class": {
+            "type": "string"
+          },
+          "transcript": {
+            "type": "string"
+          },
+          "protein_change": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "version",
+          "status"
+        ]
+      },
+      "AnnotationRequest": {
+        "type": "object",
+        "properties": {
+          "engine_id": {
+            "type": "string"
+          },
+          "variant": {
+            "$ref": "#/components/schemas/SNVVariant"
+          },
+          "annotations": {
+            "$ref": "#/components/schemas/Set"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "engine_id",
+          "variant",
+          "annotations"
+        ]
+      },
+      "AnnotationSourceStatus": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "string"
+          },
+          "license": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "enabled"
+        ]
+      },
+      "AnnotationSourcesResponse": {
+        "type": "object",
+        "properties": {
+          "sources": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AnnotationSourceStatus"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "sources"
+        ]
+      },
       "AppliedCriterion": {
         "type": "object",
         "properties": {
@@ -2707,6 +3032,100 @@
           "reason"
         ]
       },
+      "ClinVar": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "caller_supplied",
+              "sepilens_snapshot",
+              "sepilens_api"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "description": "Locked data source version; required."
+          },
+          "assembly": {
+            "type": "string",
+            "enum": [
+              "GRCh37",
+              "GRCh38"
+            ],
+            "description": "Must match variant assembly exactly."
+          },
+          "retrieved_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "found",
+              "not_found",
+              "conflicting",
+              "unavailable",
+              "stale",
+              "caller_supplied"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "variation_id": {
+            "type": "string"
+          },
+          "allele_id": {
+            "type": "string"
+          },
+          "classification": {
+            "type": "string"
+          },
+          "review_status": {
+            "type": "string"
+          },
+          "last_evaluated": {
+            "type": "string"
+          },
+          "conditions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "hgvs_c": {
+            "type": "string"
+          },
+          "hgvs_p": {
+            "type": "string"
+          },
+          "submitter_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "conflicting": {
+            "type": "boolean"
+          },
+          "other_pathogenic_same_amino_acid": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "other_pathogenic_same_residue": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "version",
+          "status"
+        ]
+      },
       "Descriptor": {
         "type": "object",
         "properties": {
@@ -2898,6 +3317,16 @@
           },
           "provider_profile_id": {
             "type": "string"
+          },
+          "combination_method": {
+            "type": "string"
+          },
+          "allow_pp5_bp6": {
+            "type": "boolean"
+          },
+          "max_searches": {
+            "type": "integer",
+            "format": "int64"
           }
         },
         "additionalProperties": false
@@ -3355,6 +3784,169 @@
           "missing_information"
         ]
       },
+      "GenCC": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "caller_supplied",
+              "sepilens_snapshot",
+              "sepilens_api"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "description": "Locked data source version; required."
+          },
+          "assembly": {
+            "type": "string",
+            "enum": [
+              "GRCh37",
+              "GRCh38"
+            ],
+            "description": "Must match variant assembly exactly."
+          },
+          "retrieved_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "found",
+              "not_found",
+              "conflicting",
+              "unavailable",
+              "stale",
+              "caller_supplied"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "gene": {
+            "type": "string"
+          },
+          "disease_id": {
+            "type": "string"
+          },
+          "disease_name": {
+            "type": "string"
+          },
+          "classification": {
+            "type": "string"
+          },
+          "moi": {
+            "type": "string"
+          },
+          "submitter": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "version",
+          "status"
+        ]
+      },
+      "GnomAD": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "caller_supplied",
+              "sepilens_snapshot",
+              "sepilens_api"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "description": "Locked data source version; required."
+          },
+          "assembly": {
+            "type": "string",
+            "enum": [
+              "GRCh37",
+              "GRCh38"
+            ],
+            "description": "Must match variant assembly exactly."
+          },
+          "retrieved_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "found",
+              "not_found",
+              "conflicting",
+              "unavailable",
+              "stale",
+              "caller_supplied"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "popmax_af": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "popmax_population": {
+            "type": "string"
+          },
+          "faf95": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "allele_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "allele_number": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "homozygote_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "hemizygote_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "coverage_adequate": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "version",
+          "status"
+        ]
+      },
       "HPOExtractRequest": {
         "type": "object",
         "properties": {
@@ -3549,6 +4141,111 @@
           }
         },
         "additionalProperties": false
+      },
+      "Pangolin": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "caller_supplied",
+              "sepilens_snapshot",
+              "sepilens_api"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "description": "Locked data source version; required."
+          },
+          "assembly": {
+            "type": "string",
+            "enum": [
+              "GRCh37",
+              "GRCh38"
+            ],
+            "description": "Must match variant assembly exactly."
+          },
+          "retrieved_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "found",
+              "not_found",
+              "conflicting",
+              "unavailable",
+              "stale",
+              "caller_supplied"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "score": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "delta_score": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "splice_site": {
+            "type": "string"
+          },
+          "interpretation": {
+            "type": "string"
+          },
+          "transcript": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "version",
+          "status"
+        ]
+      },
+      "PhenotypeInput": {
+        "type": "object",
+        "properties": {
+          "hpo_terms": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/PhenotypeTerm"
+            }
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PhenotypeTerm": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "polarity": {
+            "type": "string"
+          },
+          "onset": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id"
+        ]
       },
       "Population": {
         "type": "object",
@@ -3914,11 +4611,20 @@
           "engine_id": {
             "type": "string"
           },
+          "mode": {
+            "type": "string"
+          },
           "variant": {
             "$ref": "#/components/schemas/SNVVariant"
           },
           "clinical_context": {
             "$ref": "#/components/schemas/SNVContext"
+          },
+          "phenotype": {
+            "$ref": "#/components/schemas/PhenotypeInput"
+          },
+          "annotations": {
+            "$ref": "#/components/schemas/Set"
           },
           "options": {
             "$ref": "#/components/schemas/EvaluationOptions"
@@ -3981,6 +4687,71 @@
           "alt",
           "gene"
         ]
+      },
+      "Set": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "caller_supplied",
+              "sepilens_snapshot",
+              "sepilens_api"
+            ]
+          },
+          "clinvar": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClinVar"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gnomad": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GnomAD"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "alphamissense": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AlphaMissense"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pangolin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Pangolin"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gencc": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GenCC"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "description": "Normalized annotations. Missing or unavailable sources never count as benign evidence."
       },
       "Source": {
         "type": "object",

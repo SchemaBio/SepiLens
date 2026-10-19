@@ -9,6 +9,10 @@ type Term struct {
 	Definition   string   `json:"definition"`
 	NameCN       string   `json:"name_cn"`
 	DefinitionCN string   `json:"definition_cn"`
+	// Parents holds direct is_a parents from the HPO DAG. The translated
+	// knowledge file has no hierarchy, so the field is absent there.
+	Parents []string `json:"parents,omitempty"`
+	AltIDs  []string `json:"alt_ids,omitempty"`
 }
 
 type PreprocessResult struct {

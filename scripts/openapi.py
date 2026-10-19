@@ -30,8 +30,15 @@ def field_type(t):
         return {}
     return ref(t.split(".")[-1])
 
-for rel in ("internal/rules/svcv4/model.go", "internal/api/admission.go", "internal/api/jobs_handler.go", "internal/api/errors.go", "internal/api/server.go", "internal/api/provider_test_handler.go", "internal/evidence/model.go", "internal/hpo/model.go", "internal/jobs/store.go", "internal/engine/registry.go", "internal/rules/acmg2015/evaluator.go", "internal/rules/acmg2015/criteria.go", "internal/rules/cnvrubric/evaluate.go"):
-    source = (ROOT / rel).read_text(encoding="utf-8")
+# Sources are parsed only for public request/response structs. New packages are added here once their
+# types are exposed through an API handler; parsing a package with no exposed struct is harmless.
+SOURCE_FILES = ("internal/rules/svcv4/model.go", "internal/api/admission.go", "internal/api/annotation_handler.go", "internal/api/jobs_handler.go", "internal/api/errors.go", "internal/api/server.go", "internal/api/provider_test_handler.go", "internal/evidence/model.go", "internal/hpo/model.go", "internal/jobs/store.go", "internal/engine/registry.go", "internal/rules/acmg2015/evaluator.go", "internal/rules/acmg2015/criteria.go", "internal/rules/cnvrubric/evaluate.go")
+
+for rel in SOURCE_FILES:
+    path = ROOT / rel
+    if not path.exists():
+        continue
+    source = path.read_text(encoding="utf-8")
     for name, body in re.findall(r"type (\w+) struct \{(.*?)\n\}", source, re.S):
         properties, required = {}, []
         for go_name, t, tag in re.findall(r'\s+(\w+)\s+([\w.\[\]*{}]+)\s+`json:"([^\"]+)"`', body):
@@ -53,6 +60,63 @@ SCHEMAS["SNVVariant"]["properties"]["allele_frequency"].update(minimum=0, maximu
 for name in ("SNVContext", "CNVContext"):
     SCHEMAS[name]["properties"]["variant_origin"]["enum"] = ["germline_confirmed", "unknown"]
     SCHEMAS[name]["properties"]["sample_type"]["enum"] = ["blood", "saliva", "buccal", "fibroblast", "tissue", "other", "unknown"]
+
+# Annotation records are defined in internal/annotation and referenced by the request.
+for rel in ("internal/annotation/model.go",):
+    source = (ROOT / rel).read_text(encoding="utf-8")
+    for name, body in re.findall(r"type (\w+) struct \{(.*?)\n\}", source, re.S):
+        properties, required = {}, []
+        for go_name, t, tag in re.findall(r'\s+(\w+)\s+([\w.\[\]*{}]+)\s+`json:"([^\"]+)"`', body):
+            key = tag.split(",")[0]
+            if key == "-":
+                continue
+            if t.endswith("Record"):
+                properties[key] = {"type": "object", "additionalProperties": True, "description": "Provenance envelope: source, version, assembly, retrieved_at, status, reason."}
+                continue
+            if t.startswith("[]"):
+                properties[key] = {"type": "array", "items": field_type(t[2:])}
+                continue
+            if t.startswith("*"):
+                inner = field_type(t[1:])
+                inner = dict(inner)
+                inner["type"] = [inner.get("type", "string"), "null"] if isinstance(inner.get("type"), str) else inner.get("type", "string")
+                properties[key] = inner
+                continue
+            properties[key] = field_type(t)
+            if "omitempty" not in tag:
+                required.append(key)
+        if properties:
+            SCHEMAS[name] = {"type": "object", "properties": properties, "additionalProperties": False}
+            if required:
+                SCHEMAS[name]["required"] = required
+PROVENANCE = {
+    "source": {"type": "string", "enum": ["caller_supplied", "sepilens_snapshot", "sepilens_api"]},
+    "version": {"type": "string", "description": "Locked data source version; required."},
+    "assembly": {"type": "string", "enum": ["GRCh37", "GRCh38"], "description": "Must match variant assembly exactly."},
+    "retrieved_at": {"type": "string", "format": "date-time"},
+    "status": {"type": "string", "enum": ["found", "not_found", "conflicting", "unavailable", "stale", "caller_supplied"]},
+    "reason": {"type": "string"},
+}
+for name in ("ClinVar", "GnomAD", "AlphaMissense", "Pangolin", "GenCC"):
+    if name in SCHEMAS:
+        properties = dict(PROVENANCE)
+        properties.update(SCHEMAS[name]["properties"])
+        SCHEMAS[name]["properties"] = properties
+        SCHEMAS[name]["required"] = ["version", "status"]
+        SCHEMAS[name]["additionalProperties"] = False
+SCHEMAS["Set"] = {
+    "type": "object",
+    "properties": {
+        "source": {"type": "string", "enum": ["caller_supplied", "sepilens_snapshot", "sepilens_api"]},
+        "clinvar": {"anyOf": [ref("ClinVar"), {"type": "null"}]},
+        "gnomad": {"anyOf": [ref("GnomAD"), {"type": "null"}]},
+        "alphamissense": {"anyOf": [ref("AlphaMissense"), {"type": "null"}]},
+        "pangolin": {"anyOf": [ref("Pangolin"), {"type": "null"}]},
+        "gencc": {"anyOf": [ref("GenCC"), {"type": "null"}]},
+    },
+    "additionalProperties": False,
+    "description": "Normalized annotations. Missing or unavailable sources never count as benign evidence.",
+}
 SCHEMAS["ProviderTestRequest"]["properties"]["protocol"]["enum"] = ["openai_responses", "openai_chat"]
 SCHEMAS["ProviderTestRequest"]["required"] = ["base_url", "api_key", "model", "protocol"]
 SCHEMAS["AddReviewRequest"]["required"] = ["revision", "decision", "reason"]
@@ -97,6 +161,8 @@ for method in ("get", "put", "delete"):
     op("/v1/providers/{profile_id}", method, "Admin: tenant profile; never returns API key", "ProviderTestRequest" if method == "put" else None, "ProfilePublic" if method != "delete" else None, "201" if method == "put" else "204" if method == "delete" else "200")
 hpo = op("/v1/hpo/extract", "post", "Transient HPO extraction; explicit local fallback only; no raw text persistence", "HPOExtractRequest", "ExtractionResult")
 hpo["responses"]["202"] = {"description": "Simulation queued", "content": {"application/json": {"schema": ref("JobAccepted")}}}
+op("/v1/annotations/validate", "post", "Normalize and validate caller-supplied annotations without classifying", "AnnotationRequest")
+op("/v1/annotations/sources", "get", "Available annotation sources and their settlement status", response="AnnotationSourcesResponse")
 for name, request in (("snv", "SNVEvaluationRequest"), ("cnv", "CNVEvaluationRequest")):
     item = op(f"/v1/variants/{name}/evaluations", "post", "Persist and queue; approved rules required for germline production; unknown origin evidence_only", request, "JobAccepted", "202", [{"name": "Idempotency-Key", "in": "header", "schema": {"type": "string", "maxLength": 256}, "description": "Unique per tenant. Same pinned normalized request replays; conflicting request returns 409."}])
     item["responses"]["200"] = {"description": "Idempotent replay; no new external invocation", "content": {"application/json": {"schema": ref("JobAccepted")}}}

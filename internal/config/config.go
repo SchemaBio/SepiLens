@@ -28,6 +28,7 @@ type Config struct {
 	AllowPrivateEndpoints bool
 	LogFormat             string
 	KeyToTenant           map[string]string
+	Version               string
 
 	// Default LLM Provider Configuration
 	LLMBaseURL string
@@ -114,6 +115,7 @@ func Load() (Config, error) {
 		AllowPrivateEndpoints: allowPriv,
 		LogFormat:             logFmt,
 		KeyToTenant:           keyMap,
+		Version:               getEnv("SEPILENS_VERSION", "0.2.0-dev"),
 		LLMBaseURL:            llmBaseURL,
 		LLMAPIKey:             llmAPIKey,
 		LLMModel:              llmModel,

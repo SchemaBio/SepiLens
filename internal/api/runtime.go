@@ -79,6 +79,12 @@ func (s *Server) Close() {
 		<-s.maintenanceDone
 	}
 }
+
+// SetApprovalsForTest injects a synthetic approval in isolated package tests.
+// Production approvals must arrive through LoadRuleApproval with a signature.
+func (s *Server) SetApprovalsForTest(a map[engine.EngineID]engine.Approval) {
+	s.approvals = a
+}
 func (s *Server) submit(w http.ResponseWriter, r *http.Request, id string, input envelope, origin string, opts EvaluationOptions) {
 	desc, e := engine.Lookup(engine.EngineID(id))
 	if e != nil {

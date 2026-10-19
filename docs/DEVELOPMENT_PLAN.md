@@ -12,3 +12,5 @@
 | F | 二进制、双架构镜像构建流程、部署/运维/API 文档和测试工具 | 最终发布验证以报告为准；无医疗启用批准 |
 
 未通过项目不标为完成。规则包矩阵列出每个条款缺少的案例类别。SVC v4 临床引擎禁用，锁定草案实验评分纳入交付；Anthropic、集群、Web UI 和通用搜索不在本轮范围。
+
+下一阶段的注释、表型与 AI 覆盖开发计划见 [DEVELOPMENT_PLAN_NEXT.md](DEVELOPMENT_PLAN_NEXT.md)，设计依据见 [ASSESSMENT_ARCHITECTURE.md](ASSESSMENT_ARCHITECTURE.md)。

@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/pzweuj/sepilens/internal/annotation"
 	"github.com/pzweuj/sepilens/internal/engine"
 	"github.com/pzweuj/sepilens/internal/evidence"
 	"github.com/pzweuj/sepilens/internal/hpo"
@@ -23,9 +24,28 @@ type SNVEvaluationRequest struct {
 	Evidence        []evidence.EvidenceItem `json:"evidence,omitempty"`
 	Sources         []evidence.Source       `json:"sources,omitempty"`
 	EngineID        string                  `json:"engine_id"`
+	Mode            string                  `json:"mode,omitempty"`
 	Variant         SNVVariant              `json:"variant"`
 	ClinicalContext SNVContext              `json:"clinical_context"`
+	Phenotype       *PhenotypeInput         `json:"phenotype,omitempty"`
+	Annotations     *annotation.Set         `json:"annotations,omitempty"`
 	Options         EvaluationOptions       `json:"options"`
+}
+
+const (
+	ModeLocal      = "local"
+	ModeAIAssisted = "ai_assisted"
+)
+
+type PhenotypeInput struct {
+	Terms  []PhenotypeTerm `json:"hpo_terms,omitempty"`
+	Source string          `json:"source,omitempty"`
+}
+
+type PhenotypeTerm struct {
+	ID       string `json:"id"`
+	Polarity string `json:"polarity,omitempty"`
+	Onset    string `json:"onset,omitempty"`
 }
 
 type SNVVariant struct {
@@ -85,6 +105,9 @@ type EvaluationOptions struct {
 	RetrievalMode      string `json:"retrieval_mode,omitempty"`
 	WebSearch          *bool  `json:"web_search,omitempty"`
 	ProviderProfileID  string `json:"provider_profile_id,omitempty"`
+	CombinationMethod  string `json:"combination_method,omitempty"`
+	AllowPP5BP6        bool   `json:"allow_pp5_bp6,omitempty"`
+	MaxSearches        int    `json:"max_searches,omitempty"`
 }
 
 func resolveRetrievalMode(opts EvaluationOptions) retrieval.Mode {
@@ -111,6 +134,18 @@ type HPOExtractRequest struct {
 func validateSNVAdmission(req *SNVEvaluationRequest) (status int, code ErrorCode, msg string, ok bool) {
 	if req.EngineID == "" {
 		return http.StatusUnprocessableEntity, ErrCodeUnknownEngine, "missing engine_id", false
+	}
+	if req.Mode == "" {
+		req.Mode = ModeLocal
+	}
+	if req.Mode != ModeLocal && req.Mode != ModeAIAssisted {
+		return http.StatusUnprocessableEntity, ErrCodeBadRequest, "mode must be local or ai_assisted", false
+	}
+	if !oneOf(req.Options.CombinationMethod, "", "acmg_2015_table", "svi_points") {
+		return http.StatusUnprocessableEntity, ErrCodeBadRequest, "invalid combination_method", false
+	}
+	if req.Options.MaxSearches < 0 || req.Options.MaxSearches > 100 {
+		return http.StatusUnprocessableEntity, ErrCodeBadRequest, "max_searches must be between 0 and 100", false
 	}
 	desc, err := engine.Lookup(engine.EngineID(req.EngineID))
 	if err != nil {
@@ -155,9 +190,46 @@ func validateSNVAdmission(req *SNVEvaluationRequest) (status int, code ErrorCode
 	} else if req.DraftAssessment != nil || req.Options.AllowExperimental {
 		return 422, ErrCodeInvalidVariant, "draft assessment and experimental mode apply only to svc_v4", false
 	}
+	if req.Mode == ModeAIAssisted && desc.ID != engine.EngineACMG2015 {
+		return 422, ErrCodeBadRequest, "ai_assisted mode currently supports acmg_amp_2015 only", false
+	}
+	if code, msg := validatePhenotype(req.Phenotype); code != "" {
+		return 422, code, msg, false
+	}
+	if req.Annotations != nil {
+		if err := req.Annotations.Validate(req.Variant.Assembly); err != nil {
+			return 422, ErrCodeInvalidVariant, err.Error(), false
+		}
+	}
 	req.Variant.Assembly = normalizeAssembly(req.Variant.Assembly)
 
 	return 0, "", "", true
+}
+
+// validatePhenotype enforces identifier shape only. Clinical confirmation is a
+// separate flag that PP4 requires; extraction output never qualifies by itself.
+func validatePhenotype(in *PhenotypeInput) (ErrorCode, string) {
+	if in == nil {
+		return "", ""
+	}
+	if !oneOf(in.Source, "", "clinician_verified", "extracted_pending_review", "caller_supplied") {
+		return ErrCodeBadRequest, "invalid phenotype source"
+	}
+	seen := map[string]bool{}
+	for _, term := range in.Terms {
+		id := strings.ToUpper(strings.TrimSpace(term.ID))
+		if !regexp.MustCompile(`^HP:\d{7}$`).MatchString(id) {
+			return ErrCodeInvalidVariant, "invalid HPO identifier: " + term.ID
+		}
+		if seen[id] {
+			return ErrCodeInvalidVariant, "duplicate HPO identifier: " + id
+		}
+		seen[id] = true
+		if !oneOf(term.Polarity, "", "present", "absent", "uncertain", "family_history", "inferred") {
+			return ErrCodeInvalidVariant, "invalid phenotype polarity for " + id
+		}
+	}
+	return "", ""
 }
 
 func validateCNVAdmission(req *CNVEvaluationRequest) (status int, code ErrorCode, msg string, ok bool) {

@@ -110,6 +110,7 @@ func run() error {
 	if e != nil {
 		return e
 	}
+	cfg.Version = version
 	if *addr != "" {
 		cfg.Addr = *addr
 	}

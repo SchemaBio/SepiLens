@@ -1,10 +1,15 @@
+# Changelog
+
+## Unreleased
+
+- 结构化注释与表型驱动的 ACMG 评估设计稿，见 `docs/ASSESSMENT_ARCHITECTURE.md`。
+- 版本号改为单一来源：构建注入 `main.version`，由 `/v1/capabilities` 返回。
+
 ## 0.2.0-rc2
 
 - Pinned SVC v4 experimental reference scorer with explicit opt-in; no clinical classification or settlement.
 - 5,245 upstream parity vectors, including five exact-decimal POP_FRQ corrections.
 - Versioned implementation-bound rule package and documented API/known gaps.
-
-# Changelog
 
 ## 0.2.0-rc1 — 工程候选
 

@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"github.com/pzweuj/sepilens/internal/annotation"
 	"github.com/pzweuj/sepilens/internal/evidence"
 	"github.com/pzweuj/sepilens/internal/rules/acmg2015"
 	"github.com/pzweuj/sepilens/internal/rules/cnvgain2020"
@@ -44,6 +45,13 @@ func (s *Server) evaluate(in envelope, sources []evidence.Source, items []eviden
 		_ = json.Unmarshal(b, &v)
 		b, _ = json.Marshal(r.ClinicalContext)
 		_ = json.Unmarshal(b, &c)
+		if r.Annotations != nil {
+			// Annotations supply the criterion facts; caller evidence items are not
+			// mixed in, because a caller cannot pre-satisfy a derived criterion.
+			derived := acmg2015.Derive(r.Annotations, v, c, deriveOptions(r))
+			out := s.acmgEvaluator.EvaluateEvidence(v, c, derived.Applied(), annotationSources(r, derived))
+			return DerivedResult{EvaluationOutput: out, Derivation: derived, CombinationMethod: combinationMethod(r.Options), Points: pointsFor(r.Options, derived)}
+		}
 		return s.acmgEvaluator.EvaluateEvidence(v, c, criteria, sources)
 	}
 	if in.CNV != nil {
@@ -59,6 +67,75 @@ func (s *Server) evaluate(in envelope, sources []evidence.Source, items []eviden
 	}
 	return nil
 }
+
+// DerivedResult keeps the deterministic evaluation and its annotation provenance
+// together, so callers can audit every criterion against its source record.
+type DerivedResult struct {
+	acmg2015.EvaluationOutput
+	Derivation        acmg2015.Derivation         `json:"derivation"`
+	CombinationMethod string                      `json:"combination_method"`
+	Points            *acmg2015.PointsCombination `json:"points,omitempty"`
+}
+
+func deriveOptions(r *SNVEvaluationRequest) acmg2015.DeriveOptions {
+	opts := acmg2015.DeriveOptions{AllowPP5BP6: r.Options.AllowPP5BP6}
+	// PVS1 attestations are supplied as explicit facts; they are never inferred
+	// from GenCC validity or from the gene name.
+	if r.Annotations != nil && r.Annotations.GenCC != nil && r.Annotations.GenCC.GenCCSupports() {
+		opts.PVS1MechanismConfirmed = r.Annotations.GenCC.GenCCSupports()
+	}
+	opts.TranscriptRelevant = r.Variant.Transcript != ""
+	return opts
+}
+
+func combinationMethod(opts EvaluationOptions) string {
+	if opts.CombinationMethod == "svi_points" {
+		return "svi_points"
+	}
+	return "acmg_2015_table"
+}
+
+func pointsFor(opts EvaluationOptions, d acmg2015.Derivation) *acmg2015.PointsCombination {
+	if combinationMethod(opts) != "svi_points" {
+		return nil
+	}
+	points := acmg2015.CombinePoints(d.Applied())
+	return &points
+}
+
+// annotationSources exposes the annotation versions as verification sources, so
+// the evaluator's source gate has something auditable to check. Caller-supplied
+// annotations stay unverified: they can be evaluated but not settled or adopted.
+func annotationSources(r *SNVEvaluationRequest, d acmg2015.Derivation) []evidence.Source {
+	if r.Annotations == nil {
+		return nil
+	}
+	trusted := r.Annotations.Source == annotation.SourceSnapshot || r.Annotations.Source == annotation.SourceAPI
+	var out []evidence.Source
+	seen := map[string]bool{}
+	for _, c := range d.Candidates {
+		if c.Status != acmg2015.CriterionStatusMet {
+			continue
+		}
+		for _, id := range c.SourceIDs {
+			if seen[id] {
+				continue
+			}
+			seen[id] = true
+			src := evidence.Source{ID: id, Type: evidence.SourceTypeCuratedSnapshot, Title: id, DatasetVersion: r.Annotations.Source.String(), IdentifierValid: true, RecordExists: true}
+			if trusted {
+				src.ObjectMatched = true
+				src.MaterialVerified = true
+				src.ValidationStatus = evidence.ValidationVerified
+			} else {
+				src.ValidationStatus = evidence.ValidationUnverified
+			}
+			out = append(out, src)
+		}
+	}
+	return out
+}
+
 func parseScore(v string) (int64, error) {
 	negative := strings.HasPrefix(v, "-")
 	v = strings.TrimPrefix(v, "-")

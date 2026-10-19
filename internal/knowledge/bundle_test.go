@@ -17,7 +17,7 @@ func syntheticBundle(t *testing.T) string {
 	files := []struct {
 		path, kind, data, url string
 		complete              bool
-	}{{"hpo.obo", "hpo_obo", "format-version: 1.2\n[Term]\nid: HP:0000001\nname: Test phenotype\nsynonym: \"Test synonym\" EXACT []\n\n[Term]\nid: HP:0000002\nname: Obsolete term\nis_obsolete: true\nreplaced_by: HP:0000001\n", "https://raw.githubusercontent.com/obophenotype/human-phenotype-ontology/vtest/hp.obo", false}, {"genes.gff", "refseq_gff", "##gff-version 3\nNC_000001.11\tRefSeq\tregion\t1\t12\t.\t+\t.\tchromosome=1\nNC_000001.11\tRefSeq\tgene\t2\t8\t.\t+\t.\tID=gene-G;Name=G;gene_biotype=protein_coding\nNC_000001.11\tRefSeq\tmRNA\t2\t8\t.\t+\t.\tID=tx;Parent=gene-G\nNC_000001.11\tRefSeq\texon\t2\t5\t.\t+\t.\tID=exon;Parent=tx\n", "https://ftp.ncbi.nlm.nih.gov/genomes/synthetic/genes.gff", true}, {"dosage.tsv", "clingen_tsv", "#Gene Symbol\tGRCh38 Location\tHaploinsufficiency Score\tTriplosensitivity Score\nG\tchr1:2-8\t3\t0\n", "https://ftp.clinicalgenome.org/synthetic/dosage.tsv", true}, {"reference.fna", "reference_fasta", ">NC_000001.11\nACGTAC\nGTACGT\n", "https://ftp.ncbi.nlm.nih.gov/genomes/synthetic/reference.fna", true}}
+	}{{"hpo.obo", "hpo_obo", "format-version: 1.2\n[Term]\nid: HP:0000001\nname: Test phenotype\nsynonym: \"Test synonym\" EXACT []\n\n[Term]\nid: HP:0000002\nname: Obsolete term\nis_obsolete: true\nreplaced_by: HP:0000001\nalt_id: HP:0000003\nis_a: HP:0000001 ! Test phenotype\n", "https://raw.githubusercontent.com/obophenotype/human-phenotype-ontology/vtest/hp.obo", false}, {"genes.gff", "refseq_gff", "##gff-version 3\nNC_000001.11\tRefSeq\tregion\t1\t12\t.\t+\t.\tchromosome=1\nNC_000001.11\tRefSeq\tgene\t2\t8\t.\t+\t.\tID=gene-G;Name=G;gene_biotype=protein_coding\nNC_000001.11\tRefSeq\tmRNA\t2\t8\t.\t+\t.\tID=tx;Parent=gene-G\nNC_000001.11\tRefSeq\texon\t2\t5\t.\t+\t.\tID=exon;Parent=tx\n", "https://ftp.ncbi.nlm.nih.gov/genomes/synthetic/genes.gff", true}, {"dosage.tsv", "clingen_tsv", "#Gene Symbol\tGRCh38 Location\tHaploinsufficiency Score\tTriplosensitivity Score\nG\tchr1:2-8\t3\t0\n", "https://ftp.clinicalgenome.org/synthetic/dosage.tsv", true}, {"reference.fna", "reference_fasta", ">NC_000001.11\nACGTAC\nGTACGT\n", "https://ftp.ncbi.nlm.nih.gov/genomes/synthetic/reference.fna", true}}
 	manifest := Manifest{Version: "synthetic-offline-test"}
 	for _, f := range files {
 		p := filepath.Join(dir, f.path)
@@ -44,6 +44,12 @@ func TestLockedOfflineBundleAndReference(t *testing.T) {
 	}
 	if len(bundle.Complete) != 1 || len(bundle.Regions) != 2 || len(bundle.Regions[0].Exons) != 1 || bundle.HPO["HP:0000002"].ReplacedBy != "HP:0000001" || bundle.HPO["HP:0000001"].Synonyms[0] != "Test synonym" {
 		t.Fatalf("invalid bundle %+v", bundle)
+	}
+	if bundle.Graph == nil || len(bundle.HPO["HP:0000002"].AltIDs) != 1 || len(bundle.HPO["HP:0000002"].Parents) != 1 {
+		t.Fatalf("is_a/alt_id not loaded: %+v", bundle.HPO)
+	}
+	if bundle.HPOVersions.OntologyVersion != "synthetic" {
+		t.Fatalf("ontology version missing: %+v", bundle.HPOVersions)
 	}
 	seq, e := bundle.References["GRCh38"].Bases("chr1", 5, 5)
 	if e != nil || seq != "ACGTA" {

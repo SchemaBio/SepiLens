@@ -96,6 +96,8 @@ func NewServer(cfg config.Config, store jobs.Store, db *sql.DB, logger *slog.Log
 		r.Put("/providers/{profile_id}", s.handleProfileSave)
 		r.Delete("/providers/{profile_id}", s.handleProfileDelete)
 		r.Post("/hpo/extract", s.handleHPOExtract)
+		r.Post("/annotations/validate", s.handleAnnotationValidate)
+		r.Get("/annotations/sources", s.handleAnnotationSources)
 
 		r.Route("/variants", func(r chi.Router) {
 			r.Post("/snv/evaluations", s.handleSNVEvaluation)
@@ -151,8 +153,12 @@ type CapabilitiesResponse struct {
 }
 
 func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
+	version := s.cfg.Version
+	if version == "" {
+		version = "0.2.0-dev"
+	}
 	resp := CapabilitiesResponse{
-		Version:                         "0.2.0-rc2",
+		Version:                         version,
 		HPOCandidateExtractionAvailable: s.hpoExtractor != nil,
 		Engines:                         s.descriptors(),
 		RetrievalModes:                  []string{"off", "targeted", "deep"},

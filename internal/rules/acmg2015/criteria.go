@@ -62,9 +62,11 @@ const (
 type CriterionStatus string
 
 const (
-	CriterionStatusMet           CriterionStatus = "met"
-	CriterionStatusNotMet        CriterionStatus = "not_met"
-	CriterionStatusNotApplicable CriterionStatus = "not_applicable"
+	CriterionStatusMet              CriterionStatus = "met"
+	CriterionStatusNotMet           CriterionStatus = "not_met"
+	CriterionStatusNotApplicable    CriterionStatus = "not_applicable"
+	CriterionStatusInsufficientData CriterionStatus = "insufficient_data"
+	CriterionStatusConflicting      CriterionStatus = "conflicting"
 )
 
 type CriterionDefinition struct {
