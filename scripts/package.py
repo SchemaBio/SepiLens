@@ -16,7 +16,7 @@ out=root/args.out
 assets=[root/"internal/rules/svcv4/UPSTREAM_LICENSE"]
 for name in ("README.md","CHANGELOG.md",".env.example","LICENSE","THIRD_PARTY_NOTICES.md"):
     if (root/name).is_file(): assets.append(root/name)
-for name in ("docs","rules/packages","knowledge/hpo","scripts"):
+for name in ("docs","rules/packages","scripts"):
     assets += [p for p in (root/name).rglob("*") if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc"]
 for target in ("windows-amd64","linux-amd64","linux-arm64"):
     stem=f"sepilens-{args.version}-{target}"

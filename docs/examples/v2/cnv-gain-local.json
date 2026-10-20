@@ -1,0 +1,79 @@
+{
+  "schema_version": "sepilens-evaluation-2.0",
+  "engine_id": "cnv_gain_2020",
+  "mode": "local",
+  "clinical_context": {
+    "disease_id": "MONDO:TEST",
+    "inheritance": "AD",
+    "variant_origin": "germline_confirmed",
+    "sample_type": "blood"
+  },
+  "evidence_package": {
+    "sources": [
+      {
+        "id": "dose-1",
+        "dataset": "dosage-test",
+        "kind": "dosage",
+        "version": "synthetic-1",
+        "retrieved_at": "2026-10-20T00:00:00Z",
+        "license_confirmed": true,
+        "record_id": "SYNTHETIC_ONLY",
+        "object": {
+          "assembly": "GRCh38",
+          "chrom": "1",
+          "start": 1,
+          "end": 100,
+          "disease_id": "MONDO:TEST",
+          "inheritance": "AD"
+        },
+        "complete": true,
+        "clinical": false
+      }
+    ],
+    "dosage": {
+      "source_ids": [
+        "dose-1"
+      ],
+      "coverage": {
+        "assembly": "GRCh38",
+        "chrom": "1",
+        "start": 1,
+        "end": 100,
+        "disease_id": "MONDO:TEST",
+        "inheritance": "AD"
+      },
+      "complete": true,
+      "regions": [
+        {
+          "name": "EXAMPLE",
+          "assembly": "GRCh38",
+          "chrom": "1",
+          "start": 10,
+          "end": 90,
+          "hi_score": 3,
+          "ts_score": 3,
+          "is_gene": true,
+          "protein_coding": true,
+          "version": "synthetic-1"
+        }
+      ],
+      "protein_coding_genes": 1,
+      "gene_count_source_ids": [
+        "dose-1"
+      ],
+      "functional_elements": true,
+      "functional_source_ids": [
+        "dose-1"
+      ]
+    }
+  },
+  "options": {},
+  "cnv": {
+    "assembly": "GRCh38",
+    "chrom": "1",
+    "start": 1,
+    "end": 100,
+    "type": "gain",
+    "coordinate_system": "1-based-inclusive"
+  }
+}

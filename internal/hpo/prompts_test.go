@@ -41,7 +41,7 @@ func TestPrompts_PreprocessParsing(t *testing.T) {
 }
 
 func TestPrompts_MatchResponseParsingAndSecurityFilter(t *testing.T) {
-	kDir := filepath.Join("..", "..", "knowledge", "hpo")
+	kDir := filepath.Join("..", "..", "tests", "fixtures", "hpo", "reference")
 	idx, err := hpo.LoadDefaultIndex(kDir)
 	if err != nil {
 		t.Fatalf("failed to load index: %v", err)

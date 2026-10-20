@@ -12,6 +12,8 @@ import (
 )
 
 type Approval struct {
+	SchemaVersion      string    `json:"schema_version,omitempty"`
+	PolicyHash         string    `json:"source_policy_hash,omitempty"`
 	EngineID           EngineID  `json:"engine_id"`
 	Version            string    `json:"version"`
 	ContentHash        string    `json:"content_hash"`

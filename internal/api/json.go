@@ -2,23 +2,29 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
+	"github.com/pzweuj/sepilens/internal/strictjson"
 	"io"
 	"net/http"
 )
 
 func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 	r.Body = http.MaxBytesReader(w, r.Body, 2<<20)
-	d := json.NewDecoder(r.Body)
-	d.DisallowUnknownFields()
-	if d.Decode(v) != nil {
-		WriteError(w, r, 400, ErrCodeBadRequest, "invalid JSON payload", false)
+	b, err := io.ReadAll(r.Body)
+	if err != nil {
+		var size *http.MaxBytesError
+		if errors.As(err, &size) {
+			WriteError(w, r, 413, ErrCodeBadRequest, "payload too large", false)
+		} else {
+			WriteError(w, r, 400, ErrCodeBadRequest, "invalid request body", false)
+		}
 		return false
 	}
-	var extra any
-	if d.Decode(&extra) != io.EOF {
-		WriteError(w, r, 400, ErrCodeBadRequest, "one JSON value required", false)
+	if strictjson.Decode(b, v) != nil {
+		WriteError(w, r, 400, ErrCodeBadRequest, "invalid or ambiguous JSON", false)
 		return false
 	}
+
 	return true
 }
 func writeJSON(w http.ResponseWriter, status int, v any) {

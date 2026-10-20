@@ -10,7 +10,7 @@ RUN go mod download
 
 COPY . .
 
-ARG VERSION=0.2.0-rc2
+ARG VERSION=0.3.0-dev
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /bin/sepilens ./cmd/sepilens
 
 # Final runtime image
@@ -21,7 +21,6 @@ RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 
 COPY --from=builder /bin/sepilens /app/sepilens
-COPY --from=builder /src/knowledge/hpo /app/knowledge/hpo
 COPY --from=builder /src/LICENSE /src/THIRD_PARTY_NOTICES.md /app/
 COPY --from=builder /src/internal/rules/svcv4/UPSTREAM_LICENSE /app/SVC_UPSTREAM_LICENSE
 

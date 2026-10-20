@@ -32,7 +32,7 @@ func (m *mockLLM) Stream(ctx context.Context, req llm.GenerateRequest) (<-chan l
 }
 
 func TestExtractor_FullPipelineAndNegationFilter(t *testing.T) {
-	kDir := filepath.Join("..", "..", "knowledge", "hpo")
+	kDir := filepath.Join("..", "..", "tests", "fixtures", "hpo", "reference")
 	idx, err := hpo.LoadDefaultIndex(kDir)
 	if err != nil {
 		t.Fatalf("failed to load default index: %v", err)
@@ -74,7 +74,7 @@ func TestExtractor_FullPipelineAndNegationFilter(t *testing.T) {
 }
 
 func TestExtractor_RuleBasedFallback(t *testing.T) {
-	kDir := filepath.Join("..", "..", "knowledge", "hpo")
+	kDir := filepath.Join("..", "..", "tests", "fixtures", "hpo", "reference")
 	idx, err := hpo.LoadDefaultIndex(kDir)
 	if err != nil {
 		t.Fatalf("failed to load default index: %v", err)

@@ -3,36 +3,24 @@ package validation
 import (
 	"encoding/json"
 	"errors"
+	"github.com/pzweuj/sepilens/internal/assessment"
+	"github.com/pzweuj/sepilens/internal/config"
 	"github.com/pzweuj/sepilens/internal/engine"
-	"github.com/pzweuj/sepilens/internal/evidence"
-	"github.com/pzweuj/sepilens/internal/knowledge"
-	"github.com/pzweuj/sepilens/internal/rules/acmg2015"
-	"github.com/pzweuj/sepilens/internal/rules/cnvgain2020"
-	"github.com/pzweuj/sepilens/internal/rules/cnvloss2020"
-	"github.com/pzweuj/sepilens/internal/rules/cnvrubric"
-	"github.com/pzweuj/sepilens/internal/variant/cnv"
 	"os"
 	"sort"
+	"time"
 )
 
 type Case struct {
-	ID       string   `json:"id"`
-	Source   string   `json:"source"`
-	Reviewer string   `json:"reviewer"`
-	Kind     string   `json:"kind"`
-	Coverage []string `json:"coverage"`
-	SNV      *struct {
-		Variant  acmg2015.SNVVariantInput      `json:"variant"`
-		Context  acmg2015.ClinicalContextInput `json:"context"`
-		Criteria []acmg2015.AppliedCriterion   `json:"criteria"`
-		Sources  []evidence.Source             `json:"sources"`
-	} `json:"snv,omitempty"`
-	CNV *struct {
-		Input            cnv.CNVInput          `json:"input"`
-		Evidence         []cnvrubric.Selection `json:"evidence"`
-		VerifiedMaterial bool                  `json:"verified_material"`
-	} `json:"cnv,omitempty"`
-	Expected struct {
+	AssessmentTime time.Time           `json:"assessment_time"`
+	ID             string              `json:"id"`
+	Source         string              `json:"source"`
+	Reviewer       string              `json:"reviewer"`
+	Kind           string              `json:"kind"`
+	Coverage       []string            `json:"coverage"`
+	Actor          string              `json:"actor"`
+	Request        *assessment.Request `json:"request"`
+	Expected       struct {
 		Classification string   `json:"classification"`
 		Score          *int64   `json:"score_hundredths,omitempty"`
 		Codes          []string `json:"codes"`
@@ -46,42 +34,42 @@ type CaseResult struct {
 	Passed   bool   `json:"passed"`
 }
 type Report struct {
-	EngineID    engine.EngineID     `json:"engine_id"`
-	RulesetHash string              `json:"ruleset_hash"`
-	DatasetHash string              `json:"dataset_hash"`
-	Coverage    map[string][]string `json:"coverage"`
-	Cases       []CaseResult        `json:"cases"`
+	EngineID      engine.EngineID     `json:"engine_id"`
+	RulesetHash   string              `json:"ruleset_hash"`
+	SchemaVersion string              `json:"schema_version"`
+	PolicyHash    string              `json:"source_policy_hash"`
+	Coverage      map[string][]string `json:"coverage"`
+	Cases         []CaseResult        `json:"cases"`
 }
 
-func Run(id engine.EngineID, casesPath, bundleDir, out string) error {
+func Run(id engine.EngineID, casesPath, policyPath, out string) error {
 	if id == engine.EngineSVCv4 {
-		return errors.New("SVC draft reference parity cannot authorize clinical approval; independent clinical validation is pending")
+		return errors.New("draft parity cannot authorize clinical use")
 	}
-	content, codes, e := Rules(id)
-	if e != nil {
-		return e
+	content, codes, err := Rules(id)
+	if err != nil {
+		return err
 	}
-	b, e := os.ReadFile(casesPath)
-	if e != nil {
-		return e
+	raw, err := os.ReadFile(casesPath)
+	if err != nil {
+		return err
 	}
 	var cases []Case
-	if e = json.Unmarshal(b, &cases); e != nil {
-		return e
-	}
-	if len(cases) == 0 {
+	if json.Unmarshal(raw, &cases) != nil || len(cases) == 0 {
 		return errors.New("independently reviewed cases required")
 	}
-	report := Report{EngineID: id, RulesetHash: engine.Hash(content), DatasetHash: "unavailable", Coverage: map[string][]string{}}
-	ann := cnv.NewAnnotator()
-	if bundleDir != "" {
-		bundle, e := knowledge.Load(bundleDir)
+	policies := map[string]config.SourcePolicy{}
+	if policyPath != "" {
+		b, e := os.ReadFile(policyPath)
 		if e != nil {
 			return e
 		}
-		ann = cnv.NewSnapshotAnnotator(bundle.Regions, bundle.Complete, bundle.Hash)
-		report.DatasetHash = bundle.Hash
+		if json.Unmarshal(b, &policies) != nil {
+			return errors.New("invalid source policies")
+		}
 	}
+	b, _ := json.Marshal(policies)
+	report := Report{EngineID: id, RulesetHash: engine.Hash(content), SchemaVersion: assessment.SchemaVersion, PolicyHash: engine.Hash(b), Coverage: map[string][]string{}}
 	known := map[string]bool{}
 	for _, code := range codes {
 		known[code] = true
@@ -89,40 +77,40 @@ func Run(id engine.EngineID, casesPath, bundleDir, out string) error {
 	seen := map[string]bool{}
 	failed := false
 	for _, c := range cases {
-		valid := c.ID != "" && c.Source != "" && c.Reviewer != "" && !seen[c.ID]
+		valid := c.ID != "" && c.Source != "" && c.Reviewer != "" && !seen[c.ID] && len(c.Coverage) > 0
 		seen[c.ID] = true
-		kindKnown := false
+		kind := false
 		for _, k := range RequiredKinds {
-			kindKnown = kindKnown || k == c.Kind
+			kind = kind || k == c.Kind
 		}
-		valid = valid && kindKnown && len(c.Coverage) > 0
+		valid = valid && kind
 		var actual []string
 		classification := ""
 		var score *int64
-		if id == engine.EngineACMG2015 && c.SNV != nil {
-			r := acmg2015.NewEvaluator(nil).EvaluateEvidence(c.SNV.Variant, c.SNV.Context, c.SNV.Criteria, c.SNV.Sources)
-			classification = r.Classification
-			for _, crit := range r.AppliedCriteria {
-				if crit.Status == acmg2015.CriterionStatusMet {
-					actual = append(actual, string(crit.Code))
+		if c.Request == nil || c.Request.EngineID != string(id) || c.AssessmentTime.IsZero() || c.AssessmentTime.After(time.Now().UTC()) {
+			valid = false
+		} else {
+			req, e := assessment.Normalize(*c.Request)
+			if e != nil {
+				valid = false
+			} else {
+				sources, _ := assessment.Sources(req, c.Actor, policies, c.AssessmentTime)
+				result := assessment.Evaluate(req, sources)
+				classification = result.Classification
+				for _, v := range result.Criteria {
+					if v.Status == "met" {
+						actual = append(actual, v.Code)
+					}
+				}
+				if result.Computation != nil {
+					data, _ := json.Marshal(result.Computation)
+					var computation struct {
+						Score *int64 `json:"total_score_hundredths"`
+					}
+					_ = json.Unmarshal(data, &computation)
+					score = computation.Score
 				}
 			}
-		} else if c.CNV != nil {
-			a := ann.Annotate(c.CNV.Input)
-			for i := range c.CNV.Evidence {
-				c.CNV.Evidence[i].Verified = c.CNV.VerifiedMaterial
-			}
-			r := cnvloss2020.NewEngine().Evaluate(cnvloss2020.LossEvaluationInput{CNV: a, Evidence: c.CNV.Evidence})
-			if id == engine.EngineCNVGain2020 {
-				r = cnvgain2020.NewEngine().Evaluate(cnvgain2020.GainEvaluationInput{CNV: a, Evidence: c.CNV.Evidence})
-			}
-			classification = r.Classification
-			score = &r.TotalScoreHundredths
-			for _, clause := range r.Clauses {
-				actual = append(actual, clause.Code)
-			}
-		} else {
-			valid = false
 		}
 		sort.Strings(actual)
 		expected := append([]string(nil), c.Expected.Codes...)
@@ -138,12 +126,12 @@ func Run(id engine.EngineID, casesPath, bundleDir, out string) error {
 		report.Cases = append(report.Cases, CaseResult{c.ID, c.Source, c.Reviewer, c.Kind, valid})
 		failed = failed || !valid
 	}
-	b, e = json.MarshalIndent(report, "", "  ")
-	if e != nil {
-		return e
+	b, err = json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return err
 	}
-	if e = os.WriteFile(out, b, 0600); e != nil {
-		return e
+	if err = os.WriteFile(out, b, 0600); err != nil {
+		return err
 	}
 	if failed {
 		return errors.New("independent case comparison failed")

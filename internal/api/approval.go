@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"github.com/pzweuj/sepilens/internal/assessment"
 	"github.com/pzweuj/sepilens/internal/engine"
 	"github.com/pzweuj/sepilens/internal/validation"
 	"os"
@@ -26,7 +27,7 @@ func (s *Server) LoadRuleApproval(approvalPath, validationPath, publicKey string
 		return e
 	}
 	var report validation.Report
-	if json.Unmarshal(reportBytes, &report) != nil || report.EngineID != header.EngineID || report.RulesetHash != engine.Hash(content) || len(report.Cases) == 0 || report.DatasetHash == "unavailable" || report.DatasetHash != s.datasetHash() {
+	if json.Unmarshal(reportBytes, &report) != nil || report.EngineID != header.EngineID || report.RulesetHash != engine.Hash(content) || len(report.Cases) == 0 || report.SchemaVersion != assessment.SchemaVersion || report.PolicyHash != s.policyHash() || header.SchemaVersion != assessment.SchemaVersion || header.PolicyHash != s.policyHash() {
 		return engine.ErrRulesetNotReady
 	}
 	known := map[string]validation.CaseResult{}

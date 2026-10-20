@@ -1,0 +1,57 @@
+{
+  "schema_version": "sepilens-evaluation-2.0",
+  "engine_id": "svc_v4",
+  "mode": "local",
+  "clinical_context": {
+    "disease_id": "MONDO:TEST",
+    "inheritance": "AD",
+    "variant_origin": "germline_confirmed",
+    "sample_type": "blood"
+  },
+  "evidence_package": {
+    "sources": [
+      {
+        "id": "analyst-1",
+        "dataset": "clinical-test",
+        "kind": "clinical",
+        "version": "synthetic-1",
+        "retrieved_at": "2026-10-20T00:00:00Z",
+        "license_confirmed": true,
+        "record_id": "SYNTHETIC_ONLY",
+        "object": {
+          "assembly": "GRCh38",
+          "chrom": "1",
+          "pos": 100,
+          "ref": "A",
+          "alt": "G",
+          "gene": "EXAMPLE",
+          "disease_id": "MONDO:TEST",
+          "inheritance": "AD"
+        },
+        "complete": true,
+        "clinical": true
+      }
+    ],
+    "draft_source_ids": [
+      "analyst-1"
+    ],
+    "draft_assessment": {
+      "moi": "AD",
+      "population": {
+        "faf": "0.00015",
+        "daft": "0.00001"
+      }
+    }
+  },
+  "options": {
+    "allow_experimental": true
+  },
+  "variant": {
+    "assembly": "GRCh38",
+    "chrom": "1",
+    "pos": 100,
+    "ref": "A",
+    "alt": "G",
+    "gene": "EXAMPLE"
+  }
+}

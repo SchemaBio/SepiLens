@@ -30,7 +30,7 @@ func TestHPO_GoldenCasesRegression(t *testing.T) {
 		t.Fatalf("failed to parse golden cases fixture: %v", err)
 	}
 
-	kDir := filepath.Join("..", "..", "knowledge", "hpo")
+	kDir := filepath.Join("..", "..", "tests", "fixtures", "hpo", "reference")
 	idx, err := hpo.LoadDefaultIndex(kDir)
 	if err != nil {
 		t.Fatalf("failed to load HPO index: %v", err)

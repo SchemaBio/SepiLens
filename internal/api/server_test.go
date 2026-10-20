@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/pzweuj/sepilens/internal/api"
@@ -76,12 +77,12 @@ func TestServer_ProbesAndAuth(t *testing.T) {
 		t.Fatalf("expected 200 for readyz, got %d", recReady.Code)
 	}
 
-	// 3. /v1/capabilities without auth should return 401
-	reqCapNoAuth := httptest.NewRequest("GET", "/v1/capabilities", nil)
+	// 3. /v2/capabilities without auth should return 401
+	reqCapNoAuth := httptest.NewRequest("GET", "/v2/capabilities", nil)
 	recCapNoAuth := httptest.NewRecorder()
 	router.ServeHTTP(recCapNoAuth, reqCapNoAuth)
 	if recCapNoAuth.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401 for unauthorized /v1/capabilities, got %d", recCapNoAuth.Code)
+		t.Fatalf("expected 401 for unauthorized /v2/capabilities, got %d", recCapNoAuth.Code)
 	}
 	var errResp api.ErrorEnvelope
 	if err := json.Unmarshal(recCapNoAuth.Body.Bytes(), &errResp); err != nil {
@@ -91,8 +92,8 @@ func TestServer_ProbesAndAuth(t *testing.T) {
 		t.Fatalf("expected AUTH_FAILED code, got %s", errResp.Error.Code)
 	}
 
-	// 4. /v1/capabilities with valid Bearer token should succeed
-	reqCapAuth := httptest.NewRequest("GET", "/v1/capabilities", nil)
+	// 4. /v2/capabilities with valid Bearer token should succeed
+	reqCapAuth := httptest.NewRequest("GET", "/v2/capabilities", nil)
 	reqCapAuth.Header.Set("Authorization", "Bearer test-api-key")
 	recCapAuth := httptest.NewRecorder()
 	router.ServeHTTP(recCapAuth, reqCapAuth)
@@ -113,12 +114,23 @@ func TestServer_ProbesAndAuth(t *testing.T) {
 		}
 	}
 
-	// 5. /v1/rulesets
-	reqRules := httptest.NewRequest("GET", "/v1/rulesets", nil)
+	// 5. /v2/rulesets
+	reqRules := httptest.NewRequest("GET", "/v2/rulesets", nil)
 	reqRules.Header.Set("X-API-Key", "test-api-key")
 	recRules := httptest.NewRecorder()
 	router.ServeHTTP(recRules, reqRules)
 	if recRules.Code != http.StatusOK {
 		t.Fatalf("expected 200 for rulesets, got %d", recRules.Code)
 	}
+}
+
+func request(h http.Handler, method, path, body, key, idem string) *httptest.ResponseRecorder {
+	r := httptest.NewRequest(method, path, strings.NewReader(body))
+	r.Header.Set("Authorization", "Bearer "+key)
+	if idem != "" {
+		r.Header.Set("Idempotency-Key", idem)
+	}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	return w
 }

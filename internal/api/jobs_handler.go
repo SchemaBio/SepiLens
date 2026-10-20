@@ -3,22 +3,23 @@ package api
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/pzweuj/sepilens/internal/evidence"
 	"github.com/pzweuj/sepilens/internal/jobs"
-	"github.com/pzweuj/sepilens/internal/workflow"
 )
 
 type EvaluationResultPayload struct {
+	AssessmentID       string          `json:"assessment_id"`
+	SchemaVersion      string          `json:"schema_version"`
+	InputHash          string          `json:"input_hash"`
+	PolicyHash         string          `json:"source_policy_hash"`
 	LocalBaseline      any             `json:"local_baseline,omitempty"`
 	FailureCode        string          `json:"failure_code,omitempty"`
 	Revision           int             `json:"revision"`
 	RulesetHash        string          `json:"ruleset_hash"`
-	DatasetHash        string          `json:"dataset_hash"`
 	ProfileVersion     int             `json:"profile_version,omitempty"`
 	PromptVersion      string          `json:"prompt_version"`
 	ReviewStatus       string          `json:"review_status"`
@@ -62,29 +63,6 @@ type AddReviewRequest struct {
 	Reason                 string                  `json:"reason"`
 }
 
-func (s *Server) dispatchSimulationJob(w http.ResponseWriter, r *http.Request, engineID string, bodyBytes []byte) {
-	if s.queue == nil {
-		WriteError(w, r, 503, ErrCodeInternalError, "worker unavailable", true)
-		return
-	}
-	// Raw HPO text is transient; only its digest is used for idempotency.
-	payload, _ := json.Marshal(envelope{DatasetHash: s.datasetHash()})
-	j, replay, err := s.queue.Submit(r.Context(), GetTenantID(r.Context()), engineID, "simulation", r.Header.Get("Idempotency-Key"), computeBodyHash(bodyBytes), payload)
-	if err != nil {
-		status := 500
-		if errors.Is(err, workflow.ErrConflict) {
-			status = 409
-		}
-		WriteError(w, r, status, ErrCodeIdempotencyConflict, "task admission failed", false)
-		return
-	}
-	status := 202
-	if replay {
-		status = 200
-	}
-	writeJSON(w, status, map[string]any{"job_id": j.JobID, "status": j.Status, "result_kind": j.ResultKind, "is_replayed": replay})
-}
-
 func (s *Server) handleGetJobLogic(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	tenantID := GetTenantID(ctx)
@@ -102,45 +80,6 @@ func (s *Server) handleGetJobLogic(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(j)
-}
-
-func (s *Server) legacyJobEvents(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	tenantID := GetTenantID(ctx)
-	jobID := chi.URLParam(r, "job_id")
-
-	j, err := s.store.GetJob(ctx, tenantID, jobID)
-	if errors.Is(err, jobs.ErrJobNotFound) {
-		WriteError(w, r, http.StatusNotFound, ErrCodeJobNotFound, "job not found", false)
-		return
-	}
-	if err != nil {
-		WriteError(w, r, http.StatusInternalServerError, ErrCodeInternalError, "failed to query job", true)
-		return
-	}
-
-	events, err := s.store.GetEvents(ctx, j.JobID, 0)
-	if err != nil {
-		WriteError(w, r, http.StatusInternalServerError, ErrCodeInternalError, "failed to query events", true)
-		return
-	}
-
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		WriteError(w, r, http.StatusInternalServerError, ErrCodeInternalError, "streaming unsupported", false)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.WriteHeader(http.StatusOK)
-	flusher.Flush()
-
-	for _, ev := range events {
-		fmt.Fprintf(w, "id: %d\nevent: %s\ndata: %s\n\n", ev.Seq, ev.Stage, ev.PayloadJSON)
-		flusher.Flush()
-	}
 }
 
 func (s *Server) handleJobResultLogic(w http.ResponseWriter, r *http.Request) {
@@ -179,10 +118,6 @@ func (s *Server) handleJobResultLogic(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var res EvaluationResultPayload
-	if j.ResultKind == "legacy_unverified" {
-		writeJSON(w, 200, EvaluationResultPayload{EvaluationID: j.JobID, EngineID: j.EngineID, ResultKind: "legacy_unverified", ClinicalUse: "forbidden", DeliveryStatus: "historical", ReviewRequired: true, ReviewStatus: "unverified", AgentProposal: map[string]any{"historical_result": json.RawMessage(j.ResultJSON)}})
-		return
-	}
 	if err := json.Unmarshal([]byte(j.ResultJSON), &res); err != nil {
 		WriteError(w, r, http.StatusInternalServerError, ErrCodeInternalError, "corrupted result payload", false)
 		return

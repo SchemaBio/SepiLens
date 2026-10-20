@@ -1,5 +1,7 @@
 # 规则发布与批准
 
+> 2026-10-20：当前接口为 /v2/evaluations，医学数据库及旧数据导入已移除。以下旧命令、接口或数据集绑定属于历史记录；当前契约见 [YiJian 对接](YIJIAN_INTEGRATION.md)，存储与批准迁移见 [部署说明](DEPLOYMENT.md)。SVC 草案适用性限制和医学批准要求继续有效。
+
 固定引擎：`hpo_extract`、`acmg_amp_2015`、`svc_v4`、`cnv_loss_2020`、`cnv_gain_2020`。临床 enabled 默认为 false，依赖注入不能绕过。SVC v4 状态 experimental，可显式请求草案评分，本轮不可临床批准。
 
 `sepilens rules export -out rules/packages` 导出 ACMG/Loss/Gain 实际规则、适用事实、来源和逐条验证矩阵。矩阵中的 pending 是明确的临床验收缺口。工程单元测试和当前 HPO fixture 不冒充独立黄金案例。

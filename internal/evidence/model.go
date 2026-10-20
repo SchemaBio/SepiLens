@@ -12,11 +12,12 @@ import (
 type SourceType string
 
 const (
-	SourceTypePubMed          SourceType = "pubmed"
-	SourceTypeClinVar         SourceType = "clinvar"
-	SourceTypeClinGenDosage   SourceType = "clingen_dosage"
-	SourceTypeWebSearch       SourceType = "web_search"
-	SourceTypeCuratedSnapshot SourceType = "curated_snapshot"
+	SourceTypePubMed           SourceType = "pubmed"
+	SourceTypeClinVar          SourceType = "clinvar"
+	SourceTypeClinGenDosage    SourceType = "clingen_dosage"
+	SourceTypeWebSearch        SourceType = "web_search"
+	SourceTypeCuratedSnapshot  SourceType = "curated_snapshot"
+	SourceTypeExternalEvidence SourceType = "external_evidence"
 )
 
 type SourceValidation string

@@ -10,7 +10,7 @@ import (
 
 func getKnowledgeDir(t *testing.T) string {
 	t.Helper()
-	dir := filepath.Join("..", "..", "knowledge", "hpo")
+	dir := filepath.Join("..", "..", "tests", "fixtures", "hpo", "reference")
 	return dir
 }
 
@@ -22,8 +22,8 @@ func TestIndex_LoadAndSearch(t *testing.T) {
 	}
 
 	count := idx.TermCount()
-	if count < 20000 {
-		t.Fatalf("expected over 20,000 terms, got %d", count)
+	if count < 5 {
+		t.Fatalf("expected small regression fixture terms, got %d", count)
 	}
 
 	// 1. Direct ID lookup
@@ -68,7 +68,7 @@ func TestIndex_LoadAndSearch(t *testing.T) {
 }
 
 func BenchmarkIndex_Search(b *testing.B) {
-	kDir := filepath.Join("..", "..", "knowledge", "hpo")
+	kDir := filepath.Join("..", "..", "tests", "fixtures", "hpo", "reference")
 	idx, err := hpo.LoadDefaultIndex(kDir)
 	if err != nil {
 		b.Fatalf("failed to load index: %v", err)

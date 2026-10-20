@@ -15,9 +15,10 @@ var (
 )
 
 type Config struct {
+	MaxEvidenceBytes      int64
+	SourcePolicies        map[string]SourcePolicy
 	AIMode                string
 	MasterKey             string
-	KnowledgeDir          string
 	LLMProtocol           string
 	RetentionDays         int
 	Principals            map[string]Principal
@@ -37,12 +38,36 @@ type Config struct {
 	LLMModel   string
 }
 type Principal struct {
-	Tenant string `json:"tenant"`
-	Actor  string `json:"actor"`
-	Role   string `json:"role"`
+	Tenant         string `json:"tenant"`
+	Actor          string `json:"actor"`
+	Role           string `json:"role"`
+	SubmitEvidence bool   `json:"submit_evidence,omitempty"`
+}
+
+type SourcePolicy struct {
+	Versions   []string `json:"versions"`
+	Assemblies []string `json:"assemblies"`
+	Actors     []string `json:"actors"`
+	MaxAgeDays int      `json:"max_age_days"`
+	Clinical   bool     `json:"clinical"`
 }
 
 func Load() (Config, error) {
+	maxBytes, err := strconv.ParseInt(getEnv("SEPILENS_MAX_EVIDENCE_BYTES", "8388608"), 10, 64)
+	if err != nil || maxBytes < 1024 || maxBytes > 64<<20 {
+		return Config{}, errors.New("invalid evidence size limit")
+	}
+	policies := map[string]SourcePolicy{}
+	if raw := os.Getenv("SEPILENS_SOURCE_POLICIES"); raw != "" {
+		if json.Unmarshal([]byte(raw), &policies) != nil {
+			return Config{}, errors.New("invalid source policies")
+		}
+		for id, p := range policies {
+			if id == "" || len(p.Versions) == 0 || len(p.Actors) == 0 || len(p.Assemblies) == 0 || p.MaxAgeDays < 0 || p.MaxAgeDays > 36500 {
+				return Config{}, errors.New("invalid source policy")
+			}
+		}
+	}
 	aiMode := getEnv("SEPILENS_AI_MODE", "disabled")
 	if aiMode != "disabled" && aiMode != "enabled" {
 		return Config{}, errors.New("invalid AI mode")
@@ -84,7 +109,7 @@ func Load() (Config, error) {
 	llmAPIKey := getEnv("SEPILENS_LLM_API_KEY", getEnv("OPENAI_API_KEY", ""))
 	llmModel := getEnv("SEPILENS_LLM_MODEL", getEnv("OPENAI_MODEL", "gpt-4o"))
 
-	dbPath := filepath.Join(dataDir, "sepilens.db")
+	dbPath := filepath.Join(dataDir, "sepilens-v2.db")
 
 	keyMap := make(map[string]string)
 	rawKeys := os.Getenv("SEPILENS_API_KEYS")
@@ -107,9 +132,10 @@ func Load() (Config, error) {
 	}
 
 	return Config{
+		MaxEvidenceBytes:      maxBytes,
+		SourcePolicies:        policies,
 		AIMode:                aiMode,
 		MasterKey:             masterKey,
-		KnowledgeDir:          getEnv("SEPILENS_KNOWLEDGE_DIR", "./knowledge/hpo"),
 		LLMProtocol:           getEnv("SEPILENS_LLM_PROTOCOL", "openai_responses"),
 		RetentionDays:         retention,
 		Principals:            principals,
@@ -121,7 +147,7 @@ func Load() (Config, error) {
 		AllowPrivateEndpoints: allowPriv,
 		LogFormat:             logFmt,
 		KeyToTenant:           keyMap,
-		Version:               getEnv("SEPILENS_VERSION", "0.2.0-dev"),
+		Version:               getEnv("SEPILENS_VERSION", "0.3.0-dev"),
 		LLMBaseURL:            llmBaseURL,
 		LLMAPIKey:             llmAPIKey,
 		LLMModel:              llmModel,
@@ -140,13 +166,13 @@ func (c Config) LookupTenant(key string) (string, bool) {
 }
 func (c Config) LookupPrincipal(key string) (Principal, bool) {
 	if c.AuthMode == "disabled" {
-		return Principal{"anonymous-dev", "dev", "admin"}, true
+		return Principal{Tenant: "anonymous-dev", Actor: "dev", Role: "admin", SubmitEvidence: true}, true
 	}
 	if p, ok := c.Principals[key]; ok {
 		return p, true
 	}
 	t, ok := c.KeyToTenant[key]
-	return Principal{t, "service", "submitter"}, ok
+	return Principal{Tenant: t, Actor: "service", Role: "submitter"}, ok
 }
 
 func getEnv(key, fallback string) string {

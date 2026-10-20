@@ -1,0 +1,58 @@
+{
+  "schema_version": "sepilens-evaluation-2.0",
+  "engine_id": "acmg_amp_2015",
+  "mode": "local",
+  "clinical_context": {
+    "disease_id": "MONDO:TEST",
+    "inheritance": "AD",
+    "variant_origin": "germline_confirmed",
+    "sample_type": "blood"
+  },
+  "evidence_package": {
+    "sources": [
+      {
+        "id": "am-1",
+        "dataset": "alphamissense-test",
+        "kind": "alphamissense",
+        "version": "synthetic-1",
+        "retrieved_at": "2026-10-20T00:00:00Z",
+        "license_confirmed": true,
+        "record_id": "SYNTHETIC_ONLY",
+        "object": {
+          "assembly": "GRCh38",
+          "chrom": "1",
+          "pos": 100,
+          "ref": "A",
+          "alt": "G",
+          "gene": "EXAMPLE",
+          "disease_id": "MONDO:TEST",
+          "inheritance": "AD"
+        },
+        "complete": true,
+        "clinical": false
+      }
+    ],
+    "annotations": {
+      "alphamissense": {
+        "version": "synthetic-1",
+        "status": "found",
+        "assembly": "GRCh38",
+        "retrieved_at": "2026-10-20T00:00:00Z",
+        "score": 0.99,
+        "class": "likely_pathogenic",
+        "transcript": "NM_000001.1"
+      }
+    }
+  },
+  "options": {},
+  "variant": {
+    "assembly": "GRCh38",
+    "chrom": "1",
+    "pos": 100,
+    "ref": "A",
+    "alt": "G",
+    "gene": "EXAMPLE",
+    "transcript": "NM_000001.1",
+    "consequence": "missense_variant"
+  }
+}

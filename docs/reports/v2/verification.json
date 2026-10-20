@@ -1,0 +1,58 @@
+{
+  "date": "2026-10-20",
+  "status": "passed_engineering_checks",
+  "schema_version": "sepilens-evaluation-2.0",
+  "windows": {
+    "go_test_all": "passed",
+    "go_vet": "passed",
+    "build": "passed",
+    "smoke_checks": 39,
+    "binary_sha256": "df852eda743d8d6f3bd2e21c7cef53a0503f4a34d013bf0cfb8c873b2c6e991e"
+  },
+  "linux_wsl": {
+    "go_test_race_all": "passed",
+    "go_vet": "passed",
+    "build": "passed",
+    "smoke_checks": 39,
+    "binary_sha256": "108ed6b4c0cf144cf504a5f5077ba3b7d50ee058ef29169c540e3b02f87ecda0"
+  },
+  "openapi": "no_drift",
+  "mock_matrix": {
+    "engines": [
+      "acmg_amp_2015",
+      "svc_v4",
+      "cnv_gain_2020",
+      "cnv_loss_2020"
+    ],
+    "protocols": [
+      "openai_responses",
+      "openai_chat"
+    ],
+    "outcomes": [
+      "two_round_success",
+      "provider_failure_with_baseline"
+    ]
+  },
+  "other_regressions": [
+    "strict_json_duplicates_and_unknown_fields",
+    "API_key_permission_and_tenant_isolation",
+    "source_policy_license_freshness_and_object_matching",
+    "fixed_point_gain_loss_and_coverage",
+    "PVS1_prerequisites",
+    "existing_six_phenotype_relations_and_ten_PP4_gates",
+    "six_AI_changes_and_forged_citations",
+    "opaque_citation_IDs_and_private_record_omission",
+    "durable_baseline_on_external_call_interruption",
+    "revision_recompute_and_old_review_invalidation",
+    "legacy_database_rejection_without_file_change",
+    "four_published_JSON_requests_and_synthetic_responses"
+  ],
+  "limitations": [
+    "No live paid vendor invocation",
+    "No real YiJian deployment integration test",
+    "No independent clinical golden-case approval",
+    "SVC is a locked experimental draft; method values cannot be rewritten by a model",
+    "Docker image scripts updated but images not built or container-tested in this run",
+    "Upstream evidence authenticity uses authenticated service identity and source policy, not independent database retrieval"
+  ]
+}

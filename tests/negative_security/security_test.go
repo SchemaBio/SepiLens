@@ -16,11 +16,7 @@ import (
 	"github.com/pzweuj/sepilens/internal/config"
 	"github.com/pzweuj/sepilens/internal/evidence"
 	"github.com/pzweuj/sepilens/internal/jobs"
-	"github.com/pzweuj/sepilens/internal/rules/acmg2015"
-	"github.com/pzweuj/sepilens/internal/rules/cnvgain2020"
-	"github.com/pzweuj/sepilens/internal/rules/cnvloss2020"
 	"github.com/pzweuj/sepilens/internal/storage/sqlite"
-	"github.com/pzweuj/sepilens/internal/variant/cnv"
 )
 
 func setupSecurityServer(t *testing.T, logBuf *bytes.Buffer) (*api.Server, func()) {
@@ -53,15 +49,9 @@ func setupSecurityServer(t *testing.T, logBuf *bytes.Buffer) (*api.Server, func(
 
 	store := jobs.NewSQLiteStore(db)
 	evidenceStore := evidence.NewSQLiteStore(db)
-	acmgEval := acmg2015.NewEvaluator(nil)
-	loss := cnvloss2020.NewEngine()
-	gain := cnvgain2020.NewEngine()
-	ann := cnv.NewAnnotator()
 
 	srv := api.NewServer(cfg, store, db, logger)
 	srv.SetEvidenceStore(evidenceStore)
-	srv.SetACMGEvaluator(acmgEval)
-	srv.SetCNVEngines(loss, gain, ann)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	if err := srv.Start(ctx); err != nil {
@@ -89,7 +79,7 @@ func TestSecurity_MalformedCoordinatesAndBounds(t *testing.T) {
 	}{
 		{
 			name:     "CNV start > end inverted interval",
-			endpoint: "/v1/variants/cnv/evaluations",
+			endpoint: "/v2/evaluations",
 			payload: map[string]any{
 				"engine_id": "cnv_loss_2020",
 				"cnv": map[string]any{
@@ -105,11 +95,11 @@ func TestSecurity_MalformedCoordinatesAndBounds(t *testing.T) {
 				},
 			},
 			expectedCode: http.StatusUnprocessableEntity,
-			expectedErr:  api.ErrCodeInvalidVariant,
+			expectedErr:  api.ErrCodeBadRequest,
 		},
 		{
 			name:     "CNV negative start position",
-			endpoint: "/v1/variants/cnv/evaluations",
+			endpoint: "/v2/evaluations",
 			payload: map[string]any{
 				"engine_id": "cnv_loss_2020",
 				"cnv": map[string]any{
@@ -125,11 +115,11 @@ func TestSecurity_MalformedCoordinatesAndBounds(t *testing.T) {
 				},
 			},
 			expectedCode: http.StatusUnprocessableEntity,
-			expectedErr:  api.ErrCodeInvalidVariant,
+			expectedErr:  api.ErrCodeBadRequest,
 		},
 		{
 			name:     "CNV unsupported assembly",
-			endpoint: "/v1/variants/cnv/evaluations",
+			endpoint: "/v2/evaluations",
 			payload: map[string]any{
 				"engine_id": "cnv_loss_2020",
 				"cnv": map[string]any{
@@ -145,11 +135,11 @@ func TestSecurity_MalformedCoordinatesAndBounds(t *testing.T) {
 				},
 			},
 			expectedCode: http.StatusUnprocessableEntity,
-			expectedErr:  api.ErrCodeAssemblyMismatch,
+			expectedErr:  api.ErrCodeBadRequest,
 		},
 		{
 			name:     "SNV negative position",
-			endpoint: "/v1/variants/snv/evaluations",
+			endpoint: "/v2/evaluations",
 			payload: map[string]any{
 				"engine_id": "acmg_amp_2015",
 				"variant": map[string]any{
@@ -167,11 +157,11 @@ func TestSecurity_MalformedCoordinatesAndBounds(t *testing.T) {
 				},
 			},
 			expectedCode: http.StatusUnprocessableEntity,
-			expectedErr:  api.ErrCodeInvalidVariant,
+			expectedErr:  api.ErrCodeBadRequest,
 		},
 		{
 			name:     "SNV empty ref/alt allele",
-			endpoint: "/v1/variants/snv/evaluations",
+			endpoint: "/v2/evaluations",
 			payload: map[string]any{
 				"engine_id": "acmg_amp_2015",
 				"variant": map[string]any{
@@ -189,11 +179,11 @@ func TestSecurity_MalformedCoordinatesAndBounds(t *testing.T) {
 				},
 			},
 			expectedCode: http.StatusUnprocessableEntity,
-			expectedErr:  api.ErrCodeInvalidVariant,
+			expectedErr:  api.ErrCodeBadRequest,
 		},
 		{
 			name:     "Somatic confirmed CNV strictly rejected",
-			endpoint: "/v1/variants/cnv/evaluations",
+			endpoint: "/v2/evaluations",
 			payload: map[string]any{
 				"engine_id": "cnv_loss_2020",
 				"cnv": map[string]any{
@@ -209,12 +199,13 @@ func TestSecurity_MalformedCoordinatesAndBounds(t *testing.T) {
 				},
 			},
 			expectedCode: http.StatusUnprocessableEntity,
-			expectedErr:  api.ErrCodeUnsupportedVariantOrigin,
+			expectedErr:  api.ErrCodeBadRequest,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			prepareV2(tc.payload)
 			b, _ := json.Marshal(tc.payload)
 			req := httptest.NewRequest("POST", tc.endpoint, bytes.NewReader(b))
 			req.Header.Set("Authorization", authHeader)
@@ -255,18 +246,22 @@ func TestSecurity_CrossTenantIsolation_IDOR(t *testing.T) {
 			"inheritance": "AR",
 		},
 	}
+	prepareV2(snvPayload)
 	body, _ := json.Marshal(snvPayload)
-	reqAlpha := httptest.NewRequest("POST", "/v1/variants/snv/evaluations", bytes.NewReader(body))
+	reqAlpha := httptest.NewRequest("POST", "/v2/evaluations", bytes.NewReader(body))
 	reqAlpha.Header.Set("Authorization", "Bearer key-tenant-alpha")
 	recAlpha := httptest.NewRecorder()
 	router.ServeHTTP(recAlpha, reqAlpha)
 
 	var alphaResp map[string]any
 	_ = json.Unmarshal(recAlpha.Body.Bytes(), &alphaResp)
-	jobID := alphaResp["job_id"].(string)
+	if recAlpha.Code != 200 {
+		t.Fatal(recAlpha.Code, recAlpha.Body.String())
+	}
+	jobID := alphaResp["assessment_id"].(string)
 
 	// Tenant Beta tries to access Tenant Alpha's job -> 404
-	reqBetaJob := httptest.NewRequest("GET", "/v1/jobs/"+jobID, nil)
+	reqBetaJob := httptest.NewRequest("GET", "/v2/jobs/"+jobID, nil)
 	reqBetaJob.Header.Set("Authorization", "Bearer key-tenant-beta")
 	recBetaJob := httptest.NewRecorder()
 	router.ServeHTTP(recBetaJob, reqBetaJob)
@@ -275,7 +270,7 @@ func TestSecurity_CrossTenantIsolation_IDOR(t *testing.T) {
 	}
 
 	// Tenant Beta tries to read evidence snapshot -> 404
-	reqBetaEvidence := httptest.NewRequest("GET", "/v1/evaluations/"+jobID+"/evidence", nil)
+	reqBetaEvidence := httptest.NewRequest("GET", "/v2/evaluations/"+jobID+"/evidence", nil)
 	reqBetaEvidence.Header.Set("Authorization", "Bearer key-tenant-beta")
 	recBetaEvidence := httptest.NewRecorder()
 	router.ServeHTTP(recBetaEvidence, reqBetaEvidence)
@@ -290,7 +285,7 @@ func TestSecurity_CrossTenantIsolation_IDOR(t *testing.T) {
 		"reason":      "Unauthorized override attempt",
 	}
 	bRev, _ := json.Marshal(reviewPayload)
-	reqBetaReview := httptest.NewRequest("POST", "/v1/evaluations/"+jobID+"/reviews", bytes.NewReader(bRev))
+	reqBetaReview := httptest.NewRequest("POST", "/v2/evaluations/"+jobID+"/reviews", bytes.NewReader(bRev))
 	reqBetaReview.Header.Set("Authorization", "Bearer key-tenant-beta")
 	recBetaReview := httptest.NewRecorder()
 	router.ServeHTTP(recBetaReview, reqBetaReview)
@@ -323,7 +318,7 @@ func TestSecurity_SSRF_MetadataAndPrivateIPsBlocked(t *testing.T) {
 			"api_key":  "sk-test-secret-1234",
 		}
 		b, _ := json.Marshal(payload)
-		req := httptest.NewRequest("POST", "/v1/providers/test", bytes.NewReader(b))
+		req := httptest.NewRequest("POST", "/v2/providers/test", bytes.NewReader(b))
 		req.Header.Set("Authorization", "Bearer key-tenant-alpha")
 		rec := httptest.NewRecorder()
 		router.ServeHTTP(rec, req)
@@ -349,7 +344,7 @@ func TestSecurity_APIKeyLeakageProtectionInLogs(t *testing.T) {
 		"api_key":  secretKey,
 	}
 	b, _ := json.Marshal(testPayload)
-	req := httptest.NewRequest("POST", "/v1/providers/test", bytes.NewReader(b))
+	req := httptest.NewRequest("POST", "/v2/providers/test", bytes.NewReader(b))
 	req.Header.Set("Authorization", "Bearer "+secretKey)
 	req.Header.Set("X-API-Key", secretKey)
 	rec := httptest.NewRecorder()
@@ -358,5 +353,19 @@ func TestSecurity_APIKeyLeakageProtectionInLogs(t *testing.T) {
 	logOutput := logBuf.String()
 	if strings.Contains(logOutput, secretKey) {
 		t.Fatalf("CRITICAL CREDENTIAL LEAK: secret key found in server logs:\n%s", logOutput)
+	}
+}
+
+func prepareV2(p map[string]any) {
+	p["schema_version"] = "sepilens-evaluation-2.0"
+	p["mode"] = "local"
+	p["evidence_package"] = map[string]any{"sources": []any{}}
+	p["options"] = map[string]any{}
+	c := p["clinical_context"].(map[string]any)
+	if c["disease_id"] == nil {
+		c["disease_id"] = "MONDO:1"
+	}
+	if c["inheritance"] == nil {
+		c["inheritance"] = "AD"
 	}
 }

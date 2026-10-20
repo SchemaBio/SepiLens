@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 
@@ -33,6 +34,30 @@ var legacyEvidenceSQL string
 var snapshotExtensionsSQL string
 
 func Open(dbPath string) (*sql.DB, error) {
+	// Inspect existing files before enabling WAL, which can alter a legacy header.
+	if st, err := os.Stat(dbPath); err == nil && st.Size() > 0 && dbPath != ":memory:" {
+		abs, e := filepath.Abs(dbPath)
+		if e != nil {
+			return nil, e
+		}
+		path := filepath.ToSlash(abs)
+		if len(path) > 1 && path[1] == ':' {
+			path = "/" + path
+		}
+		u := url.URL{Scheme: "file", Path: path, RawQuery: "mode=ro"}
+		probe, e := sql.Open("sqlite", u.String())
+		if e != nil {
+			return nil, e
+		}
+		var id int
+		e = probe.QueryRow(`PRAGMA application_id`).Scan(&id)
+		probe.Close()
+		if e != nil || id != 0x53455032 {
+			return nil, fmt.Errorf("unsupported legacy business database: specify a new data directory; old files were not modified")
+		}
+	} else if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
 	if dir := filepath.Dir(dbPath); dir != "" && dir != "." {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return nil, fmt.Errorf("create sqlite dir: %w", err)
@@ -51,6 +76,26 @@ func Open(dbPath string) (*sql.DB, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("ping sqlite: %w", err)
 	}
+	var applicationID, tables int
+	if err := db.QueryRow(`PRAGMA application_id`).Scan(&applicationID); err != nil {
+		db.Close()
+		return nil, err
+	}
+	if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`).Scan(&tables); err != nil {
+		db.Close()
+		return nil, err
+	}
+	const formatID = 0x53455032 // SEP2: external-evidence business storage.
+	if (tables > 0 && applicationID != formatID) || (applicationID != 0 && applicationID != formatID) {
+		db.Close()
+		return nil, fmt.Errorf("unsupported legacy business database: specify a new data directory; old files were not modified")
+	}
+	if applicationID == 0 {
+		if _, err := db.Exec(`PRAGMA application_id=1397051442`); err != nil {
+			db.Close()
+			return nil, err
+		}
+	}
 
 	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY,applied_at TEXT NOT NULL)`); err != nil {
 		db.Close()
@@ -60,19 +105,6 @@ func Open(dbPath string) (*sql.DB, error) {
 	if err := db.QueryRow(`SELECT COALESCE(MAX(version),0) FROM schema_migrations`).Scan(&current); err != nil {
 		db.Close()
 		return nil, err
-	}
-	if current < 3 {
-		var existing int
-		_ = db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='jobs'`).Scan(&existing)
-		if existing > 0 && dbPath != ":memory:" {
-			backup := dbPath + ".pre-v3.bak"
-			if _, err := os.Stat(backup); os.IsNotExist(err) {
-				if _, err = db.Exec(`VACUUM INTO ?`, backup); err != nil {
-					db.Close()
-					return nil, fmt.Errorf("migration backup failed: %w", err)
-				}
-			}
-		}
 	}
 	for i, migration := range []string{initSQL, evidenceSQL, runtimeSQL, encryptionSQL, reviewVersionsSQL, legacyEvidenceSQL, snapshotExtensionsSQL} {
 		if i+1 <= current {

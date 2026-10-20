@@ -9,8 +9,6 @@ foreach($arch in @("amd64","arm64")){
  if(!(Test-Path -LiteralPath $binary)){throw "Run release.ps1 first"}
  Copy-Item -LiteralPath $binary -Destination (Join-Path $context "sepilens-linux-$arch")
 }
-New-Item -ItemType Directory -Force -Path (Join-Path $context "knowledge") | Out-Null
-Copy-Item -LiteralPath (Join-Path $root "knowledge/hpo") -Destination (Join-Path $context "knowledge/hpo") -Recurse
 Copy-Item -LiteralPath (Join-Path $root "LICENSE"),(Join-Path $root "THIRD_PARTY_NOTICES.md") -Destination $context
 Copy-Item -LiteralPath (Join-Path $root "internal/rules/svcv4/UPSTREAM_LICENSE") -Destination (Join-Path $context "SVC_UPSTREAM_LICENSE")
 @'
@@ -19,7 +17,6 @@ RUN apk add --no-cache ca-certificates tzdata && addgroup -S sepilens && adduser
 WORKDIR /app
 ARG TARGETARCH
 COPY sepilens-linux-${TARGETARCH} /app/sepilens
-COPY knowledge/hpo /app/knowledge/hpo
 COPY LICENSE THIRD_PARTY_NOTICES.md SVC_UPSTREAM_LICENSE /app/
 RUN chmod 755 /app/sepilens && mkdir /app/data && chown sepilens:sepilens /app/data
 USER sepilens

@@ -4,11 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/pzweuj/sepilens/internal/annotation"
+	"github.com/pzweuj/sepilens/internal/assessment"
 	"github.com/pzweuj/sepilens/internal/engine"
 	"github.com/pzweuj/sepilens/internal/evidence"
 	"github.com/pzweuj/sepilens/internal/jobs"
-	"github.com/pzweuj/sepilens/internal/rules/acmg2015"
 	"github.com/pzweuj/sepilens/internal/workflow"
 	"net/http"
 	"time"
@@ -19,144 +18,124 @@ func validClassification(v string) bool {
 }
 func (s *Server) reviseEvidence(w http.ResponseWriter, r *http.Request, j jobs.Job, req AddReviewRequest) {
 	if s.queue == nil || j.ResultKind != "production" || len(req.Corrections) == 0 {
-		WriteError(w, r, 409, ErrCodeRulesetNotAvailable, "production evaluation and evidence corrections required", false)
+		WriteError(w, r, 409, ErrCodeRulesetNotAvailable, "production evidence corrections required", false)
 		return
 	}
 	ctx := r.Context()
-	snap, e := s.evidenceStore.GetSnapshot(ctx, j.TenantID, j.JobID)
-	if e != nil {
-		WriteError(w, r, 409, ErrCodeBadRequest, "verified snapshot required", false)
+	snap, err := s.evidenceStore.GetSnapshot(ctx, j.TenantID, j.JobID)
+	if err != nil {
+		WriteError(w, r, 409, ErrCodeBadRequest, "snapshot required", false)
 		return
 	}
-	var enc string
-	if s.db.QueryRowContext(ctx, `SELECT payload FROM work_inputs WHERE job_id=? AND tenant_id=?`, j.JobID, j.TenantID).Scan(&enc) != nil {
-		WriteError(w, r, 409, ErrCodeBadRequest, "replay input unavailable", false)
-		return
-	}
-	plain, e := s.queue.Cipher.Open(enc, j.TenantID+":"+j.JobID+":input")
-	var in envelope
-	if e != nil || json.Unmarshal([]byte(plain), &in) != nil {
-		WriteError(w, r, 500, ErrCodeInternalError, "replay integrity failed", false)
-		return
-	}
+	in, err := s.savedInput(ctx, j)
 	a, ok := s.approvals[engine.EngineID(j.EngineID)]
-	if !ok || a.ContentHash != in.RulesetHash || in.DatasetHash != s.datasetHash() {
-		WriteError(w, r, 409, ErrCodeRulesetNotAvailable, "pinned rule and dataset required", false)
+	if err != nil || !ok || a.ContentHash != in.RulesetHash || in.PolicyHash != s.policyHash() {
+		WriteError(w, r, 409, ErrCodeRulesetNotAvailable, "pinned rule and source policy required", false)
 		return
-	}
-	verified := map[string]bool{}
-	for _, id := range req.VerifiedSources {
-		verified[id] = true
-	}
-	for i := range snap.Sources {
-		src := &snap.Sources[i]
-		if verified[src.ID] {
-			if !src.RecordExists || !src.IdentifierValid {
-				WriteError(w, r, 422, ErrCodeBadRequest, "source record must first be resolved", false)
-				return
-			}
-			src.ObjectMatched = true
-			src.MaterialVerified = true
-			src.ValidationStatus = evidence.ValidationVerified
-			src.VerifiedBy = req.ReviewerID
-			src.VerifiedAt = time.Now().UTC().Format(time.RFC3339Nano)
-			src.VerificationReason = req.Reason
-			delete(verified, src.ID)
-		}
-	}
-	if len(verified) > 0 {
-		WriteError(w, r, 422, ErrCodeBadRequest, "unknown source identity", false)
-		return
-	}
-	req.Corrections = evidence.NewSourceVerifier().EnforceEvidenceIntegrity(req.Corrections, snap.Sources)
-	for _, it := range req.Corrections {
-		if it.Status != evidence.StatusMet && it.Status != evidence.StatusNotMet && it.Status != evidence.StatusNotApplicable {
-			WriteError(w, r, 422, ErrCodeBadRequest, "correction requires verified source and explicit applicability", false)
-			return
-		}
-		if it.EngineID != j.EngineID {
-			WriteError(w, r, 422, ErrCodeBadRequest, "evidence engine mismatch", false)
-			return
-		}
 	}
 	var result EvaluationResultPayload
 	if json.Unmarshal([]byte(j.ResultJSON), &result) != nil {
-		WriteError(w, r, 500, ErrCodeInternalError, "result unavailable", false)
+		WriteError(w, r, 500, ErrCodeInternalError, "result integrity failed", false)
 		return
 	}
-	// Merge by rule code into the saved effective set. Re-running annotation
-	// derivation here would silently erase the professional's corrections.
-	merged := append([]evidence.EvidenceItem(nil), snap.Items...)
-	seen := map[string]bool{}
-	for _, correction := range req.Corrections {
-		if seen[correction.RuleCode] {
-			WriteError(w, r, 422, ErrCodeBadRequest, "duplicate correction code", false)
+	b, _ := json.Marshal(result.RuleEngineResult)
+	var effective assessment.Result
+	if json.Unmarshal(b, &effective) != nil {
+		WriteError(w, r, 409, ErrCodeBadRequest, "effective criteria required", false)
+		return
+	}
+	// Source resolution and policy approval cannot be manufactured during review.
+	for _, id := range req.VerifiedSources {
+		found := false
+		for _, src := range snap.Sources {
+			found = found || (src.ID == id && src.RecordExists && src.IdentifierValid && src.ObjectMatched)
+		}
+		if !found {
+			WriteError(w, r, 422, ErrCodeBadRequest, "unresolved source", false)
 			return
 		}
-		seen[correction.RuleCode] = true
+	}
+	for i := range snap.Sources {
+		src := &snap.Sources[i]
+		for _, id := range req.VerifiedSources {
+			if src.ID == id {
+				src.MaterialVerified = true
+				src.ValidationStatus = evidence.ValidationVerified
+				src.VerifiedBy = req.ReviewerID
+				src.VerifiedAt = time.Now().UTC().Format(time.RFC3339)
+				src.VerificationReason = req.Reason
+			}
+		}
+	}
+	corrections := evidence.NewSourceVerifier().EnforceEvidenceIntegrity(req.Corrections, snap.Sources)
+	seen := map[string]bool{}
+	for _, it := range corrections {
+		if it.EngineID != j.EngineID || !assessment.ValidCode(j.EngineID, it.RuleCode) || seen[it.RuleCode] || (it.Status != evidence.StatusMet && it.Status != evidence.StatusNotMet && it.Status != evidence.StatusNotApplicable) {
+			WriteError(w, r, 422, ErrCodeBadRequest, "invalid or unverified correction", false)
+			return
+		}
+		seen[it.RuleCode] = true
+		c := assessment.Criterion{Code: it.RuleCode, Status: string(it.Status), Strength: it.SuggestedScore, SourceIDs: it.SourceIDs, CaseIDs: it.CaseIDs, Facts: it.Facts, Reason: it.Reason}
+		if in.Request.CNV != nil {
+			n, e := parseScore(it.SuggestedScore)
+			if e != nil {
+				WriteError(w, r, 422, ErrCodeBadRequest, "invalid fixed-point score", false)
+				return
+			}
+			c.Score = &n
+			c.Strength = ""
+		}
 		found := false
-		for n := range merged {
-			if merged[n].RuleCode == correction.RuleCode {
-				merged[n] = correction
+		for n, old := range effective.Criteria {
+			if old.Code == c.Code {
+				if c.Code == "PP4" && c.Status == "met" && old.Status != "met" {
+					WriteError(w, r, 422, ErrCodePhenotypeUnverified, "PP4 gates require a new evaluation", false)
+					return
+				}
+				effective.Criteria[n] = c
 				found = true
 			}
 		}
 		if !found {
-			merged = append(merged, correction)
+			if c.Code == "PP4" && c.Status == "met" {
+				WriteError(w, r, 422, ErrCodePhenotypeUnverified, "PP4 gates required", false)
+				return
+			}
+			effective.Criteria = append(effective.Criteria, c)
 		}
 	}
-	if in.SNV != nil && len(snap.Annotations) > 0 {
-		var prior DerivedResult
-		b, _ := json.Marshal(result.RuleEngineResult)
-		if json.Unmarshal(b, &prior) != nil {
-			WriteError(w, r, 409, ErrCodeBadRequest, "saved derivation required", false)
-			return
-		}
-		for _, it := range req.Corrections {
-			if it.RuleCode == "PP4" && it.Status == evidence.StatusMet && (prior.Phenotype == nil || prior.Phenotype.PP4.Status != "met") {
-				WriteError(w, r, 422, ErrCodePhenotypeUnverified, "PP4 requires all saved phenotype gates; changed phenotype requires a new evaluation", false)
-				return
-			}
-		}
-		derivation := acmg2015.Derivation{Gaps: prior.Derivation.Gaps, Conflicts: prior.Derivation.Conflicts}
-		for _, it := range merged {
-			def, ok := acmg2015.CanonicalCriteria[acmg2015.CriterionCode(it.RuleCode)]
-			if !ok {
-				WriteError(w, r, 422, ErrCodeBadRequest, "unknown criterion code", false)
-				return
-			}
-			derivation.Candidates = append(derivation.Candidates, acmg2015.Candidate{Code: def.Code, Direction: def.Direction, Status: acmg2015.CriterionStatus(it.Status), Strength: acmg2015.Strength(it.SuggestedScore), Facts: it.Facts, SourceIDs: it.SourceIDs, Reason: it.Reason})
-		}
-		if in.SNV.Annotations == nil {
-			in.SNV.Annotations = &annotation.Set{}
-			if json.Unmarshal(snap.Annotations, in.SNV.Annotations) != nil {
-				WriteError(w, r, 409, ErrCodeBadRequest, "annotation snapshot invalid", false)
-				return
-			}
-		}
-		in.SNV.phenotypeResult = prior.Phenotype
-		result.RuleEngineResult = s.evaluateDerivation(in.SNV, derivation, snap.Sources)
-	} else {
-		result.RuleEngineResult = s.evaluate(in, snap.Sources, merged)
-	}
+	effective = assessment.Recompute(in.Request, effective, snap.Sources)
+	result.RuleEngineResult = effective
 	result.Revision++
 	result.ReviewStatus = "revised_pending"
 	result.ReviewerDecision = nil
 	result.SettlementEligible = false
+	snap.Items = assessmentItems(j.EngineID, effective.Criteria)
 	snap.SnapshotID = workflow.ID("snp-")
-	snap.Items = merged
-	snap.Overrides, _ = json.Marshal(map[string]any{"prior": json.RawMessage(snap.Overrides), "reviewer": req.ReviewerID, "corrections": req.Corrections})
 	snap.CreatedAt = time.Now().UTC()
-	snap.HashVersion = "v2"
-	snap.Hash, e = evidence.SnapshotHash(*snap)
-	if e == nil {
-		e = s.commitRevision(ctx, j, req, result, snap)
+	snap.Overrides, _ = json.Marshal(map[string]any{"prior": json.RawMessage(snap.Overrides), "reviewer": req.ReviewerID, "corrections": corrections})
+	snap.Hash, err = evidence.SnapshotHash(*snap)
+	if err == nil {
+		err = s.commitRevision(ctx, j, req, result, snap)
 	}
-	if e != nil {
-		WriteError(w, r, 500, ErrCodeInternalError, "revision commit failed", true)
+	if err != nil {
+		WriteError(w, r, 500, ErrCodeInternalError, "revision commit failed", false)
 		return
 	}
-	writeJSON(w, 201, map[string]any{"evaluation_id": j.JobID, "status": "revised_pending", "snapshot_id": snap.SnapshotID})
+	writeJSON(w, 201, map[string]any{"assessment_id": j.JobID, "revision": result.Revision, "status": "revised_pending"})
+}
+func (s *Server) savedInput(ctx context.Context, j jobs.Job) (evaluationInput, error) {
+	var in evaluationInput
+	var enc string
+	if err := s.db.QueryRowContext(ctx, `SELECT payload FROM work_inputs WHERE job_id=? AND tenant_id=?`, j.JobID, j.TenantID).Scan(&enc); err != nil {
+		return in, err
+	}
+	raw, err := s.queue.Cipher.Open(enc, j.TenantID+":"+j.JobID+":input")
+	if err != nil {
+		return in, err
+	}
+	err = json.Unmarshal([]byte(raw), &in)
+	return in, err
 }
 func (s *Server) commitRevision(ctx context.Context, j jobs.Job, req AddReviewRequest, result EvaluationResultPayload, snap *evidence.EvidenceSnapshot) error {
 	tx, e := s.db.BeginTx(ctx, nil)

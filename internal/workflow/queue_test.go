@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"github.com/pzweuj/sepilens/internal/evidence"
 	"github.com/pzweuj/sepilens/internal/jobs"
@@ -13,6 +14,44 @@ import (
 	"testing"
 	"time"
 )
+
+func TestCheckpointSurvivesInterruptedExternalCall(t *testing.T) {
+	q, store := testQueue(t)
+	ctx := context.Background()
+	j := submitTask(t, q)
+	task, _, err := q.claim(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot := evidence.EvidenceSnapshot{SnapshotID: "baseline", EvaluationID: j.JobID, TenantID: "tenant", CreatedAt: time.Now().UTC()}
+	snapshot.HashVersion = "v2"
+	snapshot.Annotations = json.RawMessage(`{"input":"fixed"}`)
+	snapshot.Hash, err = evidence.SnapshotHash(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	baseline := map[string]any{"local_baseline": map[string]any{"classification": "VUS"}, "delivery_status": "pending", "settlement_eligible": false}
+	if err = q.Checkpoint(ctx, task, baseline, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = q.DB.Exec(`UPDATE work_inputs SET external_started=1,lease_until='2000-01-01' WHERE job_id=?`, j.JobID); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err = q.claim(ctx); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatal(err)
+	}
+	out, err := store.GetJob(ctx, "tenant", j.JobID)
+	if err != nil || out.Status != jobs.StatusFailed {
+		t.Fatal(out, err)
+	}
+	var result map[string]any
+	if json.Unmarshal([]byte(out.ResultJSON), &result) != nil || result["local_baseline"] == nil || result["delivery_status"] != "failed" || result["failure_code"] != "AI_EXECUTION_INTERRUPTED" {
+		t.Fatal(out.ResultJSON)
+	}
+	if _, err = q.Evidence.GetSnapshot(ctx, "tenant", j.JobID); err != nil {
+		t.Fatal("baseline snapshot lost", err)
+	}
+}
 
 func testQueue(t *testing.T) (*Queue, *jobs.EncryptedStore) {
 	t.Helper()

@@ -1,0 +1,142 @@
+{
+  "HP:0000001": {
+    "id": "HP:0000001",
+    "name": "All",
+    "definition": "-",
+    "name_cn": "所有表型",
+    "definition_cn": "-"
+  },
+  "HP:0000002": {
+    "id": "HP:0000002",
+    "name": "Abnormality of body height",
+    "definition": "Deviation from the norm of height with respect to that which is expected according to age and gender norms.",
+    "name_cn": "身高异常",
+    "definition_cn": "偏离年龄和性别标准的身高正常值范围。"
+  },
+  "HP:0000003": {
+    "id": "HP:0000003",
+    "name": "Multicystic kidney dysplasia",
+    "definition": "Multicystic dysplasia of the kidney is characterized by multiple cysts of varying size in the kidney and the absence of a normal pelvicaliceal system. The condition is associated with ureteral or ureteropelvic atresia, and the affected kidney is nonfunctional.",
+    "name_cn": "多囊性肾发育不良",
+    "definition_cn": "多囊性肾发育不良的特征是肾脏内存在多个大小不一的囊肿，且缺乏正常的肾盂肾盏系统。该病常伴有输尿管或肾盂输尿管闭锁，受累肾脏无功能。"
+  },
+  "HP:0000077": {
+    "id": "HP:0000077",
+    "name": "Abnormality of the kidney",
+    "definition": "An abnormality of the kidney.",
+    "name_cn": "肾异常",
+    "definition_cn": "肾脏异常"
+  },
+  "HP:0000083": {
+    "id": "HP:0000083",
+    "name": "Renal insufficiency",
+    "definition": "A reduction in the level of performance of the kidneys in areas of function comprising the concentration of urine, removal of wastes, the maintenance of electrolyte balance, homeostasis of blood pressure, and calcium metabolism.",
+    "name_cn": "肾功能不全",
+    "definition_cn": "肾功能减退，表现为尿液浓缩功能下降、废物清除能力降低、电解质平衡失调、血压稳态失衡以及钙代谢异常。"
+  },
+  "HP:0000107": {
+    "id": "HP:0000107",
+    "name": "Renal cyst",
+    "definition": "A fluid filled sac in the kidney.",
+    "name_cn": "肾囊肿",
+    "definition_cn": "肾囊肿"
+  },
+  "HP:0000118": {
+    "id": "HP:0000118",
+    "name": "Phenotypic abnormality",
+    "definition": "A phenotypic abnormality.",
+    "name_cn": "表型异常",
+    "definition_cn": "表型异常"
+  },
+  "HP:0000119": {
+    "id": "HP:0000119",
+    "name": "Abnormality of the genitourinary system",
+    "definition": "The presence of any abnormality of the genitourinary system.",
+    "name_cn": "生殖泌尿系统异常",
+    "definition_cn": "泌尿生殖系统异常的存在。"
+  },
+  "HP:0000822": {
+    "id": "HP:0000822",
+    "name": "Hypertension",
+    "definition": "The presence of chronic increased pressure in the systemic arterial system.",
+    "name_cn": "高血压",
+    "definition_cn": "系统性动脉系统内存在慢性压力增高。"
+  },
+  "HP:0001250": {
+    "id": "HP:0001250",
+    "name": "Seizure",
+    "definition": "A seizure is an intermittent abnormality of nervous system physiology characterized by a transient occurrence of signs and/or symptoms due to abnormal excessive or synchronous neuronal activity in the brain.",
+    "name_cn": "癫痫发作",
+    "definition_cn": "癫痫发作是一种神经系统生理功能的间歇性异常，其特征是由于大脑中神经元活动异常过度或同步化而导致的短暂性体征和/或症状的出现。"
+  },
+  "HP:0001289": {
+    "id": "HP:0001289",
+    "name": "Confusion",
+    "definition": "Lack of clarity and coherence of thought, perception, understanding, or action.",
+    "name_cn": "意识模糊",
+    "definition_cn": "思维、感知、理解或行为缺乏清晰性和连贯性。"
+  },
+  "HP:0001658": {
+    "id": "HP:0001658",
+    "name": "Myocardial infarction",
+    "definition": "Necrosis of the myocardium caused by an obstruction of the blood supply to the heart and often associated with chest pain, shortness of breath, palpitations, and anxiety as well as characteristic EKG findings and elevation of serum markers including creatine kinase-MB fraction and troponin.",
+    "name_cn": "心肌梗死",
+    "definition_cn": "心肌坏死，由心脏血液供应阻塞引起，常伴有胸痛、呼吸困难、心悸和焦虑，以及特征性心电图表现和血清标志物升高，包括肌酸激酶-MB同工酶和肌钙蛋白。"
+  },
+  "HP:0001945": {
+    "id": "HP:0001945",
+    "name": "Fever",
+    "definition": "Body temperature elevated above the normal range.",
+    "name_cn": "发热",
+    "definition_cn": "体温升高超出正常范围。"
+  },
+  "HP:0002315": {
+    "id": "HP:0002315",
+    "name": "Headache",
+    "definition": "Cephalgia, or pain sensed in various parts of the head, not confined to the area of distribution of any nerve.",
+    "name_cn": "头痛",
+    "definition_cn": "头痛，或称为头部不同部位感知到的疼痛，不局限于任何神经分布区域。"
+  },
+  "HP:0002321": {
+    "id": "HP:0002321",
+    "name": "Vertigo",
+    "definition": "An abnormal sensation of spinning while the body is actually stationary.",
+    "name_cn": "眩晕",
+    "definition_cn": "眩晕（Vertigo）"
+  },
+  "HP:0002354": {
+    "id": "HP:0002354",
+    "name": "Memory impairment",
+    "definition": "An impairment of memory as manifested by a reduced ability to remember things such as dates and names, and increased forgetfulness.",
+    "name_cn": "记忆功能障碍",
+    "definition_cn": "记忆障碍表现为对日期、姓名等事物的记忆能力下降，以及遗忘频率增加。"
+  },
+  "HP:0005978": {
+    "id": "HP:0005978",
+    "name": "Type II diabetes mellitus",
+    "definition": "A type of diabetes mellitus initially characterized by insulin resistance and hyperinsulinemia and subsequently by glucose interolerance and hyperglycemia.",
+    "name_cn": "2型糖尿病",
+    "definition_cn": "一种糖尿病类型，最初以胰岛素抵抗和高胰岛素血症为特征，随后发展为葡萄糖耐受不良和高血糖症。"
+  },
+  "HP:0009999": {
+    "id": "HP:0009999",
+    "name": "Partial duplication of the phalanx of hand",
+    "definition": "A partial duplication, depending on severity leading to a broad or bifid appearance, affecting one or more of the phalanges of the hand. As opposed to a complete duplication there is still a variable degree of fusion between the duplicated bones.",
+    "name_cn": "手部指骨部分重复",
+    "definition_cn": "部分重复，根据严重程度可导致广泛或分叉的外观，影响手部一个或多个指骨。与完全重复不同，重复骨骼之间仍存在不同程度的融合。"
+  },
+  "HP:0012251": {
+    "id": "HP:0012251",
+    "name": "ST segment elevation",
+    "definition": "An electrocardiographic anomaly in which the ST segment is observed to be located superior to the isoelectric line.",
+    "name_cn": "ST段抬高",
+    "definition_cn": "ST段抬高型心电图异常。"
+  },
+  "HP:0100543": {
+    "id": "HP:0100543",
+    "name": "Cognitive impairment",
+    "definition": "Abnormal cognition is characterized by deficits in thinking, reasoning, or remembering.",
+    "name_cn": "认知功能障碍",
+    "definition_cn": "异常认知的特征表现为思维、推理或记忆方面的缺陷。"
+  }
+}

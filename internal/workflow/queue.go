@@ -49,6 +49,37 @@ func ID(prefix string) string {
 	return prefix + hex.EncodeToString(b)
 }
 func (q *Queue) Submit(ctx context.Context, t, engine, kind, key, hash string, payload []byte) (jobs.Job, bool, error) {
+	return q.submit(ctx, t, engine, kind, key, hash, payload, "")
+}
+
+// RunInline reserves a running job atomically, so background workers cannot
+// race a synchronous local assessment. Completion uses the same transaction.
+func (q *Queue) RunInline(ctx context.Context, t, engine, kind, key, hash string, payload []byte) (jobs.Job, bool, error) {
+	owner := ID("inline-")
+	j, replay, err := q.submit(ctx, t, engine, kind, key, hash, payload, owner)
+	if err != nil || replay {
+		return j, replay, err
+	}
+	task := Task{JobID: j.JobID, TenantID: t, EngineID: engine, Kind: kind, Payload: payload, External: func() error { return errors.New("external calls forbidden in local mode") }}
+	var result any
+	var snapshot *evidence.EvidenceSnapshot
+	func() {
+		defer func() {
+			if recover() != nil {
+				err = errors.New("local assessment failed")
+			}
+		}()
+		result, snapshot, err = q.Handle(ctx, task)
+	}()
+	commitCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if e := q.complete(commitCtx, task, owner, result, snapshot, err); e != nil {
+		return j, false, e
+	}
+	return j, false, err
+}
+
+func (q *Queue) submit(ctx context.Context, t, engine, kind, key, hash string, payload []byte, owner string) (jobs.Job, bool, error) {
 	if len(key) > 256 {
 		return jobs.Job{}, false, errors.New("idempotency key too long")
 	}
@@ -76,6 +107,10 @@ func (q *Queue) Submit(ctx context.Context, t, engine, kind, key, hash string, p
 	}
 	now := time.Now().UTC()
 	j := jobs.Job{JobID: ID("job-"), TenantID: t, EngineID: engine, ResultKind: kind, Status: jobs.StatusQueued, Stage: "queued", RequestHash: hash, CreatedAt: now, UpdatedAt: now}
+	if owner != "" {
+		j.Status = jobs.StatusRunning
+		j.Stage = "running"
+	}
 	enc, e := q.Cipher.Seal(string(payload), t+":"+j.JobID+":input")
 	if e != nil {
 		return j, false, e
@@ -84,7 +119,7 @@ func (q *Queue) Submit(ctx context.Context, t, engine, kind, key, hash string, p
 	if key != "" {
 		idem = key
 	}
-	_, e = tx.ExecContext(ctx, `INSERT INTO jobs(job_id,tenant_id,engine_id,status,result_kind,request_hash,idempotency_key,stage,created_at,updated_at) VALUES (?,?,?,'queued',?,?,?,'queued',?,?)`, j.JobID, t, engine, kind, hash, idem, now.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano))
+	_, e = tx.ExecContext(ctx, `INSERT INTO jobs(job_id,tenant_id,engine_id,status,result_kind,request_hash,idempotency_key,stage,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)`, j.JobID, t, engine, j.Status, kind, hash, idem, j.Stage, now.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano))
 	if e != nil {
 		return j, false, e
 	}
@@ -92,7 +127,12 @@ func (q *Queue) Submit(ctx context.Context, t, engine, kind, key, hash string, p
 	if e != nil {
 		return j, false, e
 	}
-	if e = event(ctx, tx, j.JobID, "queued"); e != nil {
+	if owner != "" {
+		if _, e = tx.ExecContext(ctx, `UPDATE work_inputs SET owner=?,lease_until=?,external_started=1 WHERE job_id=?`, owner, now.Add(30*time.Second).Format(time.RFC3339Nano), j.JobID); e != nil {
+			return j, false, e
+		}
+	}
+	if e = event(ctx, tx, j.JobID, j.Stage); e != nil {
 		return j, false, e
 	}
 	return j, false, tx.Commit()
@@ -138,6 +178,50 @@ func (q *Queue) claim(ctx context.Context) (Task, string, error) {
 	}
 	defer tx.Rollback()
 	now := time.Now().UTC().Format(time.RFC3339Nano)
+	// Recover durable baselines after an uncertain external call. Never retry the
+	// model or leave a previously persisted baseline looking delivered.
+	rows, e := tx.QueryContext(ctx, `SELECT j.job_id,j.tenant_id,j.result_json FROM jobs j JOIN work_inputs w ON w.job_id=j.job_id WHERE j.status='running' AND w.external_started=1 AND w.lease_until<? AND j.result_json IS NOT NULL`, now)
+	if e != nil {
+		return Task{}, "", e
+	}
+	var interrupted [][3]string
+	for rows.Next() {
+		var row [3]string
+		if e = rows.Scan(&row[0], &row[1], &row[2]); e != nil {
+			rows.Close()
+			return Task{}, "", e
+		}
+		interrupted = append(interrupted, row)
+	}
+	e = rows.Err()
+	rows.Close()
+	if e != nil {
+		return Task{}, "", e
+	}
+	for _, row := range interrupted {
+		plain, err := q.Cipher.Open(row[2], row[1]+":"+row[0]+":result")
+		var result map[string]any
+		if err != nil || json.Unmarshal([]byte(plain), &result) != nil || result == nil {
+			if _, e = tx.ExecContext(ctx, `UPDATE jobs SET result_json=NULL,status='failed',stage='baseline_integrity_failed',updated_at=? WHERE job_id=? AND tenant_id=?`, now, row[0], row[1]); e != nil {
+				return Task{}, "", e
+			}
+			if e = event(ctx, tx, row[0], "baseline_integrity_failed"); e != nil {
+				return Task{}, "", e
+			}
+			continue
+		}
+		result["delivery_status"] = "failed"
+		result["failure_code"] = "AI_EXECUTION_INTERRUPTED"
+		result["settlement_eligible"] = false
+		b, _ := json.Marshal(result)
+		enc, err := q.Cipher.Seal(string(b), row[1]+":"+row[0]+":result")
+		if err != nil {
+			return Task{}, "", err
+		}
+		if _, e = tx.ExecContext(ctx, `UPDATE jobs SET result_json=? WHERE job_id=? AND tenant_id=?`, enc, row[0], row[1]); e != nil {
+			return Task{}, "", e
+		}
+	}
 	// Uncertain external calls are never retried after lease loss.
 	_, e = tx.ExecContext(ctx, `INSERT INTO job_events(job_id,seq,stage,payload_json,created_at) SELECT j.job_id,COALESCE((SELECT MAX(seq) FROM job_events WHERE job_id=j.job_id),0)+1,'interrupted','{"stage":"interrupted","regeneration_required":true}',? FROM jobs j JOIN work_inputs w ON w.job_id=j.job_id WHERE j.status='running' AND w.external_started=1 AND w.lease_until<?`, now, now)
 	if e != nil {
@@ -185,6 +269,35 @@ func (q *Queue) claim(ctx context.Context) (Task, string, error) {
 		return task, "", e
 	}
 	return task, owner, tx.Commit()
+}
+
+// Checkpoint commits an immutable local baseline before any external call.
+// A later completion appends a different snapshot rather than overwriting it.
+func (q *Queue) Checkpoint(ctx context.Context, t Task, result any, snapshot evidence.EvidenceSnapshot) error {
+	b, e := json.Marshal(result)
+	if e != nil {
+		return e
+	}
+	enc, e := q.Cipher.Seal(string(b), t.TenantID+":"+t.JobID+":result")
+	if e != nil {
+		return e
+	}
+	tx, e := q.DB.BeginTx(ctx, nil)
+	if e != nil {
+		return e
+	}
+	defer tx.Rollback()
+	res, e := tx.ExecContext(ctx, `UPDATE jobs SET result_json=? WHERE job_id=? AND tenant_id=? AND status='running' AND EXISTS(SELECT 1 FROM work_inputs WHERE job_id=? AND external_started=0)`, enc, t.JobID, t.TenantID, t.JobID)
+	if e != nil {
+		return e
+	}
+	if n, _ := res.RowsAffected(); n != 1 {
+		return errors.New("baseline checkpoint lease unavailable")
+	}
+	if e = q.Evidence.SaveTx(ctx, tx, snapshot); e != nil {
+		return e
+	}
+	return tx.Commit()
 }
 func (q *Queue) runOne(parent context.Context) {
 	task, owner, e := q.claim(parent)

@@ -1,5 +1,7 @@
 # SVC v4 锁定草案实验评分
 
+> 2026-10-20：当前接口为 /v2/evaluations，医学数据库及旧数据导入已移除。以下旧命令、接口或数据集绑定属于历史记录；当前契约见 [YiJian 对接](YIJIAN_INTEGRATION.md)，存储与批准迁移见 [部署说明](DEPLOYMENT.md)。SVC 草案适用性限制和医学批准要求继续有效。
+
 仅提供研究与工程对照用途。临床 enabled=false；状态 experimental，experimental_available=true。版本为 draft-reference-ef66faff51a265fef7b5c4e6439905f3aa540c46。
 
 向 POST /v1/variants/snv/evaluations 提交以下合成输入。认证、幂等、队列、SSE、快照、审计、加密和删除使用通用任务机制。

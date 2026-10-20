@@ -1,0 +1,329 @@
+{
+  "assessment_id": "job-2c118d5296ec0bc677768d6227ff1b77",
+  "schema_version": "sepilens-evaluation-2.0",
+  "input_hash": "7802562101e8a4e7dfa813492d1afdf9ae7224dcba4f2b2df4f845e3b5559f40",
+  "source_policy_hash": "0dc65f35cd8c27d373ff2f64d6542368417c5f3436dc62b42bdfa40c43ac679f",
+  "local_baseline": {
+    "classification": "VUS",
+    "computation": {
+      "applied_criteria": [
+        {
+          "code": "PP3",
+          "direction": "pathogenic",
+          "evaluated_strength": "Supporting",
+          "facts": {
+            "computational_support": true,
+            "predictor_dependence_assessed": true
+          },
+          "rationale": "computational evidence supports a damaging effect; correlated predictors form one criterion",
+          "source_ids": [
+            "am-1"
+          ],
+          "status": "met"
+        }
+      ],
+      "classification": "VUS",
+      "combination_path": "",
+      "is_vcep": false,
+      "missing_information": [
+        "BA1 requires verified structured supporting material",
+        "BP1 requires verified structured supporting material",
+        "BP4 requires verified structured supporting material",
+        "BP7 requires verified structured supporting material",
+        "PM2 requires verified structured supporting material",
+        "PM4 requires verified structured supporting material",
+        "PM5 requires verified structured supporting material",
+        "PS1 requires verified structured supporting material",
+        "PVS1 requires verified structured supporting material"
+      ],
+      "review_required": true,
+      "specification_id": "richards_2015_baseline"
+    },
+    "criteria": [
+      {
+        "code": "BA1",
+        "facts": null,
+        "missing_information": [
+          "population_coverage_adequate"
+        ],
+        "reason": "gnomAD record unavailable",
+        "source_ids": null,
+        "status": "insufficient_data",
+        "strength": "StandAlone"
+      },
+      {
+        "code": "BP1",
+        "facts": null,
+        "missing_information": [
+          "primarily_truncating_disease_mechanism"
+        ],
+        "reason": "gene disease mechanism is not established in the supplied context",
+        "source_ids": null,
+        "status": "insufficient_data",
+        "strength": "Supporting"
+      },
+      {
+        "code": "BP4",
+        "facts": null,
+        "missing_information": [
+          "computational_no_impact"
+        ],
+        "reason": "no usable computational evidence",
+        "source_ids": null,
+        "status": "insufficient_data",
+        "strength": "Supporting"
+      },
+      {
+        "code": "BP7",
+        "facts": null,
+        "reason": "variant is not synonymous",
+        "source_ids": null,
+        "status": "not_applicable",
+        "strength": "Supporting"
+      },
+      {
+        "code": "PM2",
+        "facts": null,
+        "missing_information": [
+          "population_coverage_adequate"
+        ],
+        "reason": "gnomAD record unavailable",
+        "source_ids": null,
+        "status": "insufficient_data",
+        "strength": "Moderate"
+      },
+      {
+        "code": "PM4",
+        "facts": null,
+        "reason": "consequence is not an in-frame length change",
+        "source_ids": null,
+        "status": "not_applicable",
+        "strength": "Moderate"
+      },
+      {
+        "code": "PM5",
+        "facts": null,
+        "missing_information": [
+          "different_missense_same_residue_pathogenic"
+        ],
+        "reason": "ClinVar record unavailable",
+        "source_ids": null,
+        "status": "insufficient_data",
+        "strength": "Moderate"
+      },
+      {
+        "code": "PP3",
+        "facts": {
+          "computational_support": true,
+          "predictor_dependence_assessed": true
+        },
+        "reason": "computational evidence supports a damaging effect; correlated predictors form one criterion",
+        "source_ids": [
+          "am-1"
+        ],
+        "status": "met",
+        "strength": "Supporting"
+      },
+      {
+        "code": "PS1",
+        "facts": null,
+        "missing_information": [
+          "same_amino_acid_as_established_pathogenic"
+        ],
+        "reason": "ClinVar record unavailable",
+        "source_ids": null,
+        "status": "insufficient_data",
+        "strength": "Strong"
+      },
+      {
+        "code": "PVS1",
+        "facts": null,
+        "reason": "variant is not a null variant",
+        "source_ids": null,
+        "status": "not_applicable",
+        "strength": "VeryStrong"
+      }
+    ],
+    "engine_id": "acmg_amp_2015",
+    "missing_information": [
+      "BA1: applicable material required",
+      "BP1: applicable material required",
+      "BP4: applicable material required",
+      "PM2: applicable material required",
+      "PM5: applicable material required",
+      "PS1: applicable material required"
+    ],
+    "status": "calculated"
+  },
+  "revision": 1,
+  "ruleset_hash": "54aa5bb06f41ae5797727ece44ad31144b69d2dea01eca89a1524c8cf0fb6340",
+  "prompt_version": "",
+  "review_status": "pending",
+  "evaluation_id": "job-2c118d5296ec0bc677768d6227ff1b77",
+  "engine_id": "acmg_amp_2015",
+  "result_kind": "simulation",
+  "clinical_use": "forbidden",
+  "delivery_status": "delivered",
+  "settlement_eligible": false,
+  "agent_proposal": null,
+  "rule_engine_result": {
+    "classification": "VUS",
+    "computation": {
+      "applied_criteria": [
+        {
+          "code": "PP3",
+          "direction": "pathogenic",
+          "evaluated_strength": "Supporting",
+          "facts": {
+            "computational_support": true,
+            "predictor_dependence_assessed": true
+          },
+          "rationale": "computational evidence supports a damaging effect; correlated predictors form one criterion",
+          "source_ids": [
+            "am-1"
+          ],
+          "status": "met"
+        }
+      ],
+      "classification": "VUS",
+      "combination_path": "",
+      "is_vcep": false,
+      "missing_information": [
+        "BA1 requires verified structured supporting material",
+        "BP1 requires verified structured supporting material",
+        "BP4 requires verified structured supporting material",
+        "BP7 requires verified structured supporting material",
+        "PM2 requires verified structured supporting material",
+        "PM4 requires verified structured supporting material",
+        "PM5 requires verified structured supporting material",
+        "PS1 requires verified structured supporting material",
+        "PVS1 requires verified structured supporting material"
+      ],
+      "review_required": true,
+      "specification_id": "richards_2015_baseline"
+    },
+    "criteria": [
+      {
+        "code": "BA1",
+        "facts": null,
+        "missing_information": [
+          "population_coverage_adequate"
+        ],
+        "reason": "gnomAD record unavailable",
+        "source_ids": null,
+        "status": "insufficient_data",
+        "strength": "StandAlone"
+      },
+      {
+        "code": "BP1",
+        "facts": null,
+        "missing_information": [
+          "primarily_truncating_disease_mechanism"
+        ],
+        "reason": "gene disease mechanism is not established in the supplied context",
+        "source_ids": null,
+        "status": "insufficient_data",
+        "strength": "Supporting"
+      },
+      {
+        "code": "BP4",
+        "facts": null,
+        "missing_information": [
+          "computational_no_impact"
+        ],
+        "reason": "no usable computational evidence",
+        "source_ids": null,
+        "status": "insufficient_data",
+        "strength": "Supporting"
+      },
+      {
+        "code": "BP7",
+        "facts": null,
+        "reason": "variant is not synonymous",
+        "source_ids": null,
+        "status": "not_applicable",
+        "strength": "Supporting"
+      },
+      {
+        "code": "PM2",
+        "facts": null,
+        "missing_information": [
+          "population_coverage_adequate"
+        ],
+        "reason": "gnomAD record unavailable",
+        "source_ids": null,
+        "status": "insufficient_data",
+        "strength": "Moderate"
+      },
+      {
+        "code": "PM4",
+        "facts": null,
+        "reason": "consequence is not an in-frame length change",
+        "source_ids": null,
+        "status": "not_applicable",
+        "strength": "Moderate"
+      },
+      {
+        "code": "PM5",
+        "facts": null,
+        "missing_information": [
+          "different_missense_same_residue_pathogenic"
+        ],
+        "reason": "ClinVar record unavailable",
+        "source_ids": null,
+        "status": "insufficient_data",
+        "strength": "Moderate"
+      },
+      {
+        "code": "PP3",
+        "facts": {
+          "computational_support": true,
+          "predictor_dependence_assessed": true
+        },
+        "reason": "computational evidence supports a damaging effect; correlated predictors form one criterion",
+        "source_ids": [
+          "am-1"
+        ],
+        "status": "met",
+        "strength": "Supporting"
+      },
+      {
+        "code": "PS1",
+        "facts": null,
+        "missing_information": [
+          "same_amino_acid_as_established_pathogenic"
+        ],
+        "reason": "ClinVar record unavailable",
+        "source_ids": null,
+        "status": "insufficient_data",
+        "strength": "Strong"
+      },
+      {
+        "code": "PVS1",
+        "facts": null,
+        "reason": "variant is not a null variant",
+        "source_ids": null,
+        "status": "not_applicable",
+        "strength": "VeryStrong"
+      }
+    ],
+    "engine_id": "acmg_amp_2015",
+    "missing_information": [
+      "BA1: applicable material required",
+      "BP1: applicable material required",
+      "BP4: applicable material required",
+      "PM2: applicable material required",
+      "PM5: applicable material required",
+      "PS1: applicable material required"
+    ],
+    "status": "calculated"
+  },
+  "reviewer_decision": null,
+  "review_required": true,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "web_searches": 0,
+    "duration_ms": 0
+  }
+}

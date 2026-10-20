@@ -1,0 +1,41 @@
+{
+  "alphamissense-test": {
+    "versions": [
+      "synthetic-1"
+    ],
+    "actors": [
+      "yijian"
+    ],
+    "assemblies": [
+      "GRCh38"
+    ],
+    "max_age_days": 90,
+    "clinical": false
+  },
+  "dosage-test": {
+    "versions": [
+      "synthetic-1"
+    ],
+    "actors": [
+      "yijian"
+    ],
+    "assemblies": [
+      "GRCh38"
+    ],
+    "max_age_days": 90,
+    "clinical": false
+  },
+  "clinical-test": {
+    "versions": [
+      "synthetic-1"
+    ],
+    "actors": [
+      "yijian"
+    ],
+    "assemblies": [
+      "GRCh38"
+    ],
+    "max_age_days": 90,
+    "clinical": true
+  }
+}

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/pzweuj/sepilens/internal/llm"
+	"github.com/pzweuj/sepilens/internal/strictjson"
 )
 
 const PromptVersion = "acmg-ai-v1"
@@ -22,14 +23,25 @@ type Trace struct {
 	Error  string          `json:"error,omitempty"`
 }
 type RunResult struct {
-	Assessment   Assessment `json:"assessment"`
-	Trace        []Trace    `json:"tools"`
-	InputTokens  int        `json:"input_tokens"`
-	OutputTokens int        `json:"output_tokens"`
-	Rounds       int        `json:"rounds"`
+	Raw          json.RawMessage `json:"assessment_json,omitempty"`
+	Assessment   Assessment      `json:"assessment"`
+	Trace        []Trace         `json:"tools"`
+	InputTokens  int             `json:"input_tokens"`
+	OutputTokens int             `json:"output_tokens"`
+	Rounds       int             `json:"rounds"`
 }
 
 func Run(ctx context.Context, p llm.Provider, input any, execute ToolExecutor) (RunResult, error) {
+	return runContract(ctx, p, input, execute, SystemPrompt, OutputSchema(), true)
+}
+
+// RunContract shares protocol history, budgets and read-only tool restrictions
+// across engines while leaving their output vocabulary to the caller.
+func RunContract(ctx context.Context, p llm.Provider, input any, execute ToolExecutor, system string, schema map[string]any) (RunResult, error) {
+	return runContract(ctx, p, input, execute, system, schema, false)
+}
+
+func runContract(ctx context.Context, p llm.Provider, input any, execute ToolExecutor, system string, schema map[string]any, legacy bool) (RunResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
 	var out RunResult
@@ -40,7 +52,7 @@ func Run(ctx context.Context, p llm.Provider, input any, execute ToolExecutor) (
 	args := map[string]any{"type": "object", "properties": map[string]any{}, "required": []any{}, "additionalProperties": false}
 	tools := []llm.Tool{{Name: "get_annotations", Description: "Read the fixed annotation snapshot", Parameters: args}, {Name: "get_phenotype", Description: "Read the fixed phenotype score", Parameters: args}, {Name: "search_literature", Description: "Search verified official literature for the fixed evaluation object", Parameters: args}}
 	maxTokens := 8192
-	req := llm.GenerateRequest{Prompt: string(b), System: SystemPrompt, Tools: tools, JSONSchema: OutputSchema(), MaxTokens: &maxTokens}
+	req := llm.GenerateRequest{Prompt: string(b), System: system, Tools: tools, JSONSchema: schema, MaxTokens: &maxTokens}
 	seen := map[string]bool{}
 	calls := 0
 	for round := 0; round < 12; round++ {
@@ -52,10 +64,18 @@ func Run(ctx context.Context, p llm.Provider, input any, execute ToolExecutor) (
 			return out, ErrProvider
 		}
 		if len(response.ToolCalls) == 0 {
-			if err := llm.ValidateJSON(response.Content, OutputSchema()); err != nil {
+			var parsed any
+			if len(response.Content) > 256<<10 || strictjson.Decode([]byte(response.Content), &parsed) != nil {
 				return out, ErrOutputInvalid
 			}
-			out.Assessment, err = Parse(response.Content)
+			if err := llm.ValidateJSON(response.Content, schema); err != nil {
+				return out, ErrOutputInvalid
+			}
+			if legacy {
+				out.Assessment, err = Parse(response.Content)
+			} else {
+				out.Raw = json.RawMessage(response.Content)
+			}
 			return out, err
 		}
 		turn := llm.ToolTurn{Calls: response.ToolCalls, ResponseItems: response.ResponseItems}

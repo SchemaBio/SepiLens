@@ -1,0 +1,1 @@
+Small HPO translation subset for regression tests only. Extracted from the former bundled translation resource; not a deployable ontology or clinical reference. HPO attribution and terms: https://human-phenotype-ontology.github.io/license.html

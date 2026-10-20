@@ -8,20 +8,12 @@ import (
 	"github.com/pzweuj/sepilens/internal/api"
 	"github.com/pzweuj/sepilens/internal/config"
 	"github.com/pzweuj/sepilens/internal/engine"
-	"github.com/pzweuj/sepilens/internal/hpo"
 	"github.com/pzweuj/sepilens/internal/jobs"
-	"github.com/pzweuj/sepilens/internal/knowledge"
-	"github.com/pzweuj/sepilens/internal/llm"
-	"github.com/pzweuj/sepilens/internal/llm/responses"
 	"github.com/pzweuj/sepilens/internal/retrieval"
-	"github.com/pzweuj/sepilens/internal/rules/acmg2015"
-	"github.com/pzweuj/sepilens/internal/rules/cnvgain2020"
-	"github.com/pzweuj/sepilens/internal/rules/cnvloss2020"
 	"github.com/pzweuj/sepilens/internal/secure"
 	"github.com/pzweuj/sepilens/internal/ssrf"
 	"github.com/pzweuj/sepilens/internal/storage/sqlite"
 	"github.com/pzweuj/sepilens/internal/validation"
-	"github.com/pzweuj/sepilens/internal/variant/cnv"
 	"log/slog"
 	"net/http"
 	"os"
@@ -31,7 +23,7 @@ import (
 	"time"
 )
 
-var version = "0.2.0-dev"
+var version = "0.3.0-dev"
 
 func main() {
 	if e := run(); e != nil {
@@ -53,7 +45,7 @@ func run() error {
 		fs := flag.NewFlagSet("validate", flag.ContinueOnError)
 		id := fs.String("engine", "", "engine ID")
 		cases := fs.String("cases", "", "independently reviewed cases")
-		bundle := fs.String("bundle", "", "locked dataset bundle")
+		bundle := fs.String("policy", "", "source policy JSON used for independent validation")
 		out := fs.String("out", "validation.json", "comparison report")
 		if e := fs.Parse(args[1:]); e != nil {
 			return e
@@ -84,9 +76,6 @@ func run() error {
 		fmt.Println(version)
 		return nil
 	}
-	if len(args) > 0 && args[0] == "data" {
-		return dataCommand(args[1:])
-	}
 	if len(args) > 0 && args[0] == "serve" {
 		args = args[1:]
 	}
@@ -94,10 +83,12 @@ func run() error {
 	addr := fs.String("addr", "", "listen address")
 	dir := fs.String("data-dir", "", "SQLite directory")
 	env := fs.String("env-file", "", "environment file")
-	bundleDir := fs.String("bundle-dir", "", "verified official dataset bundle")
 	rulesDir := fs.String("rules-dir", "", "signed approval and validation files")
 	if e := fs.Parse(args); e != nil {
 		return e
+	}
+	if fs.NArg() != 0 {
+		return errors.New("unsupported command or positional arguments; medical data import has been removed")
 	}
 	if *env != "" {
 		if e := config.LoadDotEnvFile(*env); e != nil {
@@ -116,7 +107,7 @@ func run() error {
 	}
 	if *dir != "" {
 		cfg.DataDir = *dir
-		cfg.DBPath = filepath.Join(*dir, "sepilens.db")
+		cfg.DBPath = filepath.Join(*dir, "sepilens-v2.db")
 	}
 	if cfg.MasterKey == "" {
 		return errors.New("SEPILENS_MASTER_KEY is required (base64 32-byte key)")
@@ -128,42 +119,6 @@ func run() error {
 	}
 	defer db.Close()
 	srv := api.NewServer(cfg, jobs.NewSQLiteStore(db), db, logger)
-	var provider llm.Provider
-	if cfg.LLMAPIKey != "" {
-		provider, e = responses.NewClient(responses.Config{BaseURL: cfg.LLMBaseURL, APIKey: cfg.LLMAPIKey, Model: cfg.LLMModel, Protocol: llm.Protocol(cfg.LLMProtocol), AllowPrivate: cfg.AllowPrivateEndpoints})
-		if e != nil {
-			return errors.New("default provider invalid")
-		}
-	}
-	ann := cnv.NewAnnotator()
-	hpoDir := cfg.KnowledgeDir
-	var idx *hpo.Index
-	var offline retrieval.Retriever
-	if *bundleDir != "" {
-		bundle, e := knowledge.Load(*bundleDir)
-		if e != nil {
-			return errors.New("dataset bundle invalid")
-		}
-		ann = cnv.NewSnapshotAnnotator(bundle.Regions, bundle.Complete, bundle.Hash)
-		idx = hpo.NewIndex(bundle.HPO)
-		srv.SetReferences(bundle.References)
-		srv.SetAnnotationIndex(bundle.Annotations)
-		srv.SetPhenotypeDataset(bundle.Phenotype)
-		if bundle.Annotations != nil {
-			defer bundle.Annotations.Close()
-		}
-		offline = retrieval.NewClinGenRegionRetriever(bundle.Regions, bundle.Hash)
-		hpoDir = filepath.Join(*bundleDir, "hpo")
-	}
-	if idx == nil {
-		idx, e = hpo.LoadDefaultIndex(hpoDir)
-		if e != nil {
-			return errors.New("HPO knowledge unavailable")
-		}
-	}
-	srv.SetHPOExtractor(hpo.NewExtractor(idx, provider))
-	srv.SetACMGEvaluator(acmg2015.NewEvaluator(nil))
-	srv.SetCNVEngines(cnvloss2020.NewEngine(), cnvgain2020.NewEngine(), ann)
 	if *rulesDir != "" {
 		for _, id := range []string{"acmg_amp_2015", "cnv_loss_2020", "cnv_gain_2020"} {
 			p := filepath.Join(*rulesDir, id+".approval.json")
@@ -177,9 +132,6 @@ func run() error {
 	}
 	client := ssrf.NewHTTPClient(false, nil)
 	retrievers := []retrieval.Retriever{&retrieval.OfficialRetriever{Database: "pubmed", HTTP: client}, &retrieval.OfficialRetriever{Database: "clinvar", HTTP: client}}
-	if offline != nil {
-		retrievers = append(retrievers, offline)
-	}
 	srv.SetSearchCoordinator(retrieval.NewSearchCoordinator(retrieval.CoordinatorConfig{}, retrievers))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -204,34 +156,4 @@ func run() error {
 		}
 	}
 	return nil
-}
-func dataCommand(args []string) error {
-	if len(args) == 0 {
-		return errors.New("usage: sepilens data import|verify -manifest FILE -output DIR")
-	}
-	fs := flag.NewFlagSet("data", flag.ContinueOnError)
-	manifest := fs.String("manifest", "", "locked manifest")
-	dir := fs.String("output", "", "bundle directory")
-	if e := fs.Parse(args[1:]); e != nil {
-		return e
-	}
-	if *dir == "" {
-		return errors.New("output directory required")
-	}
-	switch args[0] {
-	case "import":
-		client := ssrf.NewHTTPClient(false, nil)
-		client.Timeout = 30 * time.Minute
-		ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
-		defer cancel()
-		return knowledge.Import(ctx, *manifest, *dir, client)
-	case "verify":
-		b, e := knowledge.Load(*dir)
-		if e == nil {
-			fmt.Println(b.Hash)
-		}
-		return e
-	default:
-		return errors.New("unknown data command")
-	}
 }

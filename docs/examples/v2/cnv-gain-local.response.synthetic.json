@@ -1,0 +1,197 @@
+{
+  "assessment_id": "job-40a7d1e60978b987510320b8c2a2a8fa",
+  "schema_version": "sepilens-evaluation-2.0",
+  "input_hash": "3a62d6feb441625b100d45f9a4af01ce22d412c272342eaff7389b931b5cd096",
+  "source_policy_hash": "0dc65f35cd8c27d373ff2f64d6542368417c5f3436dc62b42bdfa40c43ac679f",
+  "local_baseline": {
+    "classification": "Pathogenic",
+    "computation": {
+      "classification": "Pathogenic",
+      "clauses": [
+        {
+          "code": "1A",
+          "name": "1A",
+          "reason": "verified structured applicability",
+          "score": 0,
+          "section": "1",
+          "source_ids": [
+            "dose-1"
+          ]
+        },
+        {
+          "code": "2A",
+          "name": "2A",
+          "reason": "verified structured applicability",
+          "score": 100,
+          "section": "2",
+          "source_ids": [
+            "dose-1"
+          ]
+        },
+        {
+          "code": "3A",
+          "name": "3A",
+          "reason": "verified structured applicability",
+          "score": 0,
+          "section": "3",
+          "source_ids": [
+            "dose-1"
+          ]
+        }
+      ],
+      "engine_id": "cnv_gain_2020",
+      "review_required": true,
+      "status": "calculated",
+      "total_score": "1.00",
+      "total_score_hundredths": 100
+    },
+    "criteria": [
+      {
+        "code": "1A",
+        "facts": {
+          "functional_elements": true
+        },
+        "score_hundredths": 0,
+        "source_ids": [
+          "dose-1"
+        ],
+        "status": "met"
+      },
+      {
+        "code": "2A",
+        "facts": {
+          "complete_ts_overlap": true
+        },
+        "score_hundredths": 100,
+        "source_ids": [
+          "dose-1"
+        ],
+        "status": "met"
+      },
+      {
+        "code": "3A",
+        "facts": {
+          "gene_count_lower": true
+        },
+        "score_hundredths": 0,
+        "source_ids": [
+          "dose-1"
+        ],
+        "status": "met"
+      }
+    ],
+    "engine_id": "cnv_gain_2020",
+    "missing_information": [],
+    "section_scores_hundredths": {
+      "1": 0,
+      "2": 100,
+      "3": 0
+    },
+    "status": "calculated"
+  },
+  "revision": 1,
+  "ruleset_hash": "8f52b00aeed6b674c9871a3b85b3cd6caf9d16445582773496fdfc8a29c440ad",
+  "prompt_version": "",
+  "review_status": "pending",
+  "evaluation_id": "job-40a7d1e60978b987510320b8c2a2a8fa",
+  "engine_id": "cnv_gain_2020",
+  "result_kind": "simulation",
+  "clinical_use": "forbidden",
+  "delivery_status": "delivered",
+  "settlement_eligible": false,
+  "agent_proposal": null,
+  "rule_engine_result": {
+    "classification": "Pathogenic",
+    "computation": {
+      "classification": "Pathogenic",
+      "clauses": [
+        {
+          "code": "1A",
+          "name": "1A",
+          "reason": "verified structured applicability",
+          "score": 0,
+          "section": "1",
+          "source_ids": [
+            "dose-1"
+          ]
+        },
+        {
+          "code": "2A",
+          "name": "2A",
+          "reason": "verified structured applicability",
+          "score": 100,
+          "section": "2",
+          "source_ids": [
+            "dose-1"
+          ]
+        },
+        {
+          "code": "3A",
+          "name": "3A",
+          "reason": "verified structured applicability",
+          "score": 0,
+          "section": "3",
+          "source_ids": [
+            "dose-1"
+          ]
+        }
+      ],
+      "engine_id": "cnv_gain_2020",
+      "review_required": true,
+      "status": "calculated",
+      "total_score": "1.00",
+      "total_score_hundredths": 100
+    },
+    "criteria": [
+      {
+        "code": "1A",
+        "facts": {
+          "functional_elements": true
+        },
+        "score_hundredths": 0,
+        "source_ids": [
+          "dose-1"
+        ],
+        "status": "met"
+      },
+      {
+        "code": "2A",
+        "facts": {
+          "complete_ts_overlap": true
+        },
+        "score_hundredths": 100,
+        "source_ids": [
+          "dose-1"
+        ],
+        "status": "met"
+      },
+      {
+        "code": "3A",
+        "facts": {
+          "gene_count_lower": true
+        },
+        "score_hundredths": 0,
+        "source_ids": [
+          "dose-1"
+        ],
+        "status": "met"
+      }
+    ],
+    "engine_id": "cnv_gain_2020",
+    "missing_information": [],
+    "section_scores_hundredths": {
+      "1": 0,
+      "2": 100,
+      "3": 0
+    },
+    "status": "calculated"
+  },
+  "reviewer_decision": null,
+  "review_required": true,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "web_searches": 0,
+    "duration_ms": 0
+  }
+}
