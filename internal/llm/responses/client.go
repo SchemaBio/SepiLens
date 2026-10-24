@@ -115,6 +115,11 @@ func (c *Client) request(ctx context.Context, r llm.GenerateRequest, stream bool
 		tools := []any{}
 		for _, t := range r.Tools {
 			f := map[string]any{"name": t.Name, "description": t.Description, "parameters": t.Parameters, "strict": true}
+			// DeepSeek strict function schemas require its explicitly selected
+			// beta endpoint. Arguments are still validated locally by the agent.
+			if deepseekChat && !strings.HasPrefix(endpoint.Path, "/beta") {
+				delete(f, "strict")
+			}
 			if c.cfg.Protocol == llm.ProtocolOpenAIResponses {
 				f["type"] = "function"
 				tools = append(tools, f)
@@ -150,7 +155,11 @@ func (c *Client) request(ctx context.Context, r llm.GenerateRequest, stream bool
 				for _, call := range turn.Calls {
 					calls = append(calls, map[string]any{"id": call.ID, "type": "function", "function": map[string]any{"name": call.Name, "arguments": call.Arguments}})
 				}
-				messages = append(messages, map[string]any{"role": "assistant", "tool_calls": calls})
+				message := map[string]any{"role": "assistant", "tool_calls": calls}
+				if deepseekChat && turn.ReasoningContent != "" {
+					message["reasoning_content"] = turn.ReasoningContent
+				}
+				messages = append(messages, message)
 				for _, out := range turn.Outputs {
 					messages = append(messages, map[string]any{"role": "tool", "tool_call_id": out.CallID, "content": out.Output})
 				}
@@ -193,8 +202,9 @@ type wire struct {
 	} `json:"output"`
 	Choices []struct {
 		Message struct {
-			Content   string `json:"content"`
-			ToolCalls []struct {
+			ReasoningContent string `json:"reasoning_content"`
+			Content          string `json:"content"`
+			ToolCalls        []struct {
 				ID       string `json:"id"`
 				Type     string `json:"type"`
 				Function struct {
@@ -233,6 +243,7 @@ func (c *Client) Generate(ctx context.Context, r llm.GenerateRequest) (llm.Gener
 			return out, errors.New("model returned no choices")
 		}
 		out.Content = w.Choices[0].Message.Content
+		out.ReasoningContent = w.Choices[0].Message.ReasoningContent
 		out.FinishReason = w.Choices[0].Finish
 		out.InputTokens = w.Usage.Prompt
 		out.OutputTokens = w.Usage.Completion

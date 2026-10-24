@@ -99,7 +99,7 @@ func (s *Server) handleEvaluationV2(w http.ResponseWriter, r *http.Request) {
 	id := engine.EngineID(req.EngineID)
 	if id == engine.EngineSVCv4 {
 		kind = "experimental"
-	} else if req.Context.VariantOrigin != "germline_confirmed" {
+	} else if assessment.InferClinicalContext(req) || req.Context.VariantOrigin != "germline_confirmed" {
 		kind = "evidence_only"
 	} else if s.cfg.Simulation {
 		kind = "simulation"

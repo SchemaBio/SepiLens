@@ -2951,6 +2951,180 @@
           "source"
         ]
       },
+      "AssessmentAIAffectedMember": {
+        "type": "object",
+        "properties": {
+          "relation": {
+            "type": "string"
+          },
+          "condition": {
+            "type": "string"
+          },
+          "onsetAge": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "condition",
+          "relation"
+        ]
+      },
+      "AssessmentAIClinicalDiagnosis": {
+        "type": "object",
+        "properties": {
+          "mainDiagnosis": {
+            "type": "string"
+          },
+          "symptoms": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "hpoTerms": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AssessmentAIHPOTerm"
+            }
+          },
+          "onsetAge": {
+            "type": "string"
+          },
+          "diseaseHistory": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "mainDiagnosis",
+          "symptoms"
+        ]
+      },
+      "AssessmentAIContext": {
+        "type": "object",
+        "properties": {
+          "variant_annotations": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "sample": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssessmentAISampleContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "sample",
+          "variant_annotations"
+        ]
+      },
+      "AssessmentAIFamilyHistory": {
+        "type": "object",
+        "properties": {
+          "hasHistory": {
+            "type": "boolean"
+          },
+          "affectedMembers": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AssessmentAIAffectedMember"
+            }
+          },
+          "pedigreeNote": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "hasHistory"
+        ]
+      },
+      "AssessmentAIHPOTerm": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "AssessmentAISampleContext": {
+        "type": "object",
+        "properties": {
+          "gender": {
+            "type": "string"
+          },
+          "age": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "format": "int64"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sample_type": {
+            "type": "string"
+          },
+          "clinical_diagnosis": {
+            "$ref": "#/components/schemas/AssessmentAIClinicalDiagnosis"
+          },
+          "hpo_terms": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AssessmentAIHPOTerm"
+            }
+          },
+          "family_history": {
+            "$ref": "#/components/schemas/AssessmentAIFamilyHistory"
+          },
+          "father_affected_status": {
+            "type": "string"
+          },
+          "mother_affected_status": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "age",
+          "clinical_diagnosis",
+          "family_history",
+          "father_affected_status",
+          "gender",
+          "hpo_terms",
+          "mother_affected_status",
+          "sample_type"
+        ]
+      },
       "AssessmentCriterion": {
         "type": "object",
         "properties": {
@@ -3206,6 +3380,16 @@
       "AssessmentPackage": {
         "type": "object",
         "properties": {
+          "ai_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssessmentAIContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "content_hash": {
             "type": "string"
           },

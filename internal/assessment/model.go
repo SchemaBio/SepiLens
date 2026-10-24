@@ -34,6 +34,7 @@ type Region struct {
 	CoordinateSystem string `json:"coordinate_system"`
 }
 type Package struct {
+	AIContext      *AIContext             `json:"ai_context,omitempty"`
 	ContentHash    string                 `json:"content_hash,omitempty"`
 	Sources        []Source               `json:"sources"`
 	Annotations    *annotation.Set        `json:"annotations,omitempty"`
@@ -45,6 +46,49 @@ type Package struct {
 	Draft          *svcv4.DraftAssessment `json:"draft_assessment,omitempty"`
 	DraftSourceIDs []string               `json:"draft_source_ids,omitempty"`
 }
+
+// Imported context is model input, never verified evidence for medical rules.
+type AIContext struct {
+	VariantAnnotations map[string]any   `json:"variant_annotations"`
+	Sample             *AISampleContext `json:"sample"`
+}
+
+type AISampleContext struct {
+	Gender               string              `json:"gender"`
+	Age                  *int                `json:"age"`
+	SampleType           string              `json:"sample_type"`
+	ClinicalDiagnosis    AIClinicalDiagnosis `json:"clinical_diagnosis"`
+	HPOTerms             []AIHPOTerm         `json:"hpo_terms"`
+	FamilyHistory        AIFamilyHistory     `json:"family_history"`
+	FatherAffectedStatus string              `json:"father_affected_status"`
+	MotherAffectedStatus string              `json:"mother_affected_status"`
+}
+type AIHPOTerm struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+type AIClinicalDiagnosis struct {
+	MainDiagnosis  string      `json:"mainDiagnosis"`
+	Symptoms       []string    `json:"symptoms"`
+	HPOTerms       []AIHPOTerm `json:"hpoTerms,omitempty"`
+	OnsetAge       string      `json:"onsetAge,omitempty"`
+	DiseaseHistory string      `json:"diseaseHistory,omitempty"`
+}
+type AIFamilyHistory struct {
+	HasHistory      bool               `json:"hasHistory"`
+	AffectedMembers []AIAffectedMember `json:"affectedMembers,omitempty"`
+	PedigreeNote    string             `json:"pedigreeNote,omitempty"`
+}
+type AIAffectedMember struct {
+	Relation  string `json:"relation"`
+	Condition string `json:"condition"`
+	OnsetAge  string `json:"onsetAge,omitempty"`
+}
+
+func InferClinicalContext(r Request) bool {
+	return r.EngineID == "acmg_amp_2015" && r.Mode == "ai_assisted" && r.Package.AIContext != nil
+}
+
 type Object struct {
 	Assembly    string `json:"assembly"`
 	Chrom       string `json:"chrom"`

@@ -44,3 +44,43 @@ func TestDeepSeekJSONModeRetainsSchemaValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestDeepSeekToolContinuationKeepsReasoningPrivate(t *testing.T) {
+	client := &Client{cfg: Config{BaseURL: "https://api.deepseek.com/v1", APIKey: "synthetic", Model: "deepseek-flash", Protocol: llm.ProtocolOpenAIChat}}
+	calls := 0
+	client.http = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		calls++
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		f := body["tools"].([]any)[0].(map[string]any)["function"].(map[string]any)
+		if f["strict"] != nil {
+			t.Fatal("beta-only strict flag sent to standard endpoint")
+		}
+		message := map[string]any{"content": "done"}
+		finish := "stop"
+		if calls == 1 {
+			message = map[string]any{"reasoning_content": "synthetic continuation", "tool_calls": []any{map[string]any{"id": "tool1", "type": "function", "function": map[string]any{"name": "get_annotations", "arguments": "{}"}}}}
+			finish = "tool_calls"
+		} else if body["messages"].([]any)[2].(map[string]any)["reasoning_content"] != "synthetic continuation" {
+			t.Fatal("provider continuation lost")
+		}
+		wire, _ := json.Marshal(map[string]any{"choices": []any{map[string]any{"message": message, "finish_reason": finish}}})
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(string(wire))), Header: make(http.Header)}, nil
+	})}
+	req := llm.GenerateRequest{Prompt: "synthetic", Tools: []llm.Tool{{Name: "get_annotations", Parameters: map[string]any{"type": "object"}}}}
+	first, err := client.Generate(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	turn := llm.ToolTurn{Calls: first.ToolCalls, ReasoningContent: first.ReasoningContent, Outputs: []llm.ToolOutput{{CallID: "tool1", Output: "{}"}}}
+	for _, v := range []any{first, turn} {
+		encoded, _ := json.Marshal(v)
+		if strings.Contains(string(encoded), "synthetic continuation") {
+			t.Fatal("reasoning exposed to audit")
+		}
+	}
+	req.History = []llm.ToolTurn{turn}
+	if _, err = client.Generate(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+}

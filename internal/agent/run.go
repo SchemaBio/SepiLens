@@ -78,7 +78,7 @@ func runContract(ctx context.Context, p llm.Provider, input any, execute ToolExe
 			}
 			return out, err
 		}
-		turn := llm.ToolTurn{Calls: response.ToolCalls, ResponseItems: response.ResponseItems}
+		turn := llm.ToolTurn{Calls: response.ToolCalls, ResponseItems: response.ResponseItems, ReasoningContent: response.ReasoningContent}
 		for _, call := range response.ToolCalls {
 			calls++
 			if calls > 100 {

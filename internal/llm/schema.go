@@ -16,6 +16,30 @@ func ValidateJSON(raw string, schema map[string]any) error {
 	return validate(v, schema)
 }
 func validate(v any, s map[string]any) error {
+	// Structured contracts use nullable fields for scores belonging to other
+	// engines. Check every union member rather than skipping union validation.
+	var types []any
+	switch values := s["type"].(type) {
+	case []any:
+		types = values
+	case []string:
+		for _, value := range values {
+			types = append(types, value)
+		}
+	}
+	if types != nil {
+		for _, typ := range types {
+			branch := make(map[string]any, len(s))
+			for key, value := range s {
+				branch[key] = value
+			}
+			branch["type"] = typ
+			if validate(v, branch) == nil {
+				return nil
+			}
+		}
+		return errors.New("no permitted type matched")
+	}
 	if enums, ok := s["enum"].([]any); ok {
 		found := false
 		for _, e := range enums {
@@ -26,6 +50,10 @@ func validate(v any, s map[string]any) error {
 		}
 	}
 	switch s["type"] {
+	case "null":
+		if v != nil {
+			return errors.New("null required")
+		}
 	case "object":
 		m, ok := v.(map[string]any)
 		if !ok {

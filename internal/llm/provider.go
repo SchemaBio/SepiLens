@@ -35,14 +35,16 @@ type GenerateRequest struct {
 }
 
 type GenerateResult struct {
-	ToolCalls     []ToolCall        `json:"tool_calls,omitempty"`
-	ResponseItems []json.RawMessage `json:"response_items,omitempty"`
-	Content       string            `json:"content"`
-	InputTokens   int               `json:"input_tokens"`
-	OutputTokens  int               `json:"output_tokens"`
-	Citations     []string          `json:"citations,omitempty"`
-	FinishReason  string            `json:"finish_reason"`
-	RawResponse   map[string]any    `json:"raw_response,omitempty"`
+	// Provider continuation state stays in memory, outside audit and API output.
+	ReasoningContent string            `json:"-"`
+	ToolCalls        []ToolCall        `json:"tool_calls,omitempty"`
+	ResponseItems    []json.RawMessage `json:"response_items,omitempty"`
+	Content          string            `json:"content"`
+	InputTokens      int               `json:"input_tokens"`
+	OutputTokens     int               `json:"output_tokens"`
+	Citations        []string          `json:"citations,omitempty"`
+	FinishReason     string            `json:"finish_reason"`
+	RawResponse      map[string]any    `json:"raw_response,omitempty"`
 }
 
 type Tool struct {
@@ -60,9 +62,10 @@ type ToolOutput struct {
 	Output string `json:"output"`
 }
 type ToolTurn struct {
-	Calls         []ToolCall        `json:"calls"`
-	Outputs       []ToolOutput      `json:"outputs"`
-	ResponseItems []json.RawMessage `json:"response_items,omitempty"`
+	ReasoningContent string            `json:"-"`
+	Calls            []ToolCall        `json:"calls"`
+	Outputs          []ToolOutput      `json:"outputs"`
+	ResponseItems    []json.RawMessage `json:"response_items,omitempty"`
 }
 
 type ModelEvent struct {

@@ -80,19 +80,36 @@ func ValidCode(id, code string) bool {
 }
 func Validate(r *Request) error {
 	bad := func(s string) error { return errors.New(s) }
+	inferContext := InferClinicalContext(*r)
+	if r.Package.AIContext != nil && !inferContext {
+		return bad("AI context is supported only for AI-assisted ACMG")
+	}
+	if inferContext {
+		if r.Context.Inheritance == "" {
+			r.Context.Inheritance = "unknown"
+		}
+		if r.Context.SampleType == "" {
+			r.Context.SampleType = "unknown"
+		}
+		if r.Context.VariantOrigin == "" {
+			r.Context.VariantOrigin = "unknown"
+		}
+	}
 	if r.SchemaVersion != SchemaVersion || !contains([]string{"local", "ai_assisted"}, r.Mode) {
 		return bad("unsupported schema_version or mode")
 	}
 	if !contains([]string{"acmg_amp_2015", "svc_v4", "cnv_loss_2020", "cnv_gain_2020"}, r.EngineID) {
 		return bad("unsupported engine_id")
 	}
-	if r.Context.DiseaseID == "" || r.Context.Inheritance == "" || !contains([]string{"germline_confirmed", "somatic_confirmed", "unknown"}, r.Context.VariantOrigin) || r.Context.SampleType == "" {
+	if (!inferContext && r.Context.DiseaseID == "") || r.Context.Inheritance == "" || !contains([]string{"germline_confirmed", "somatic_confirmed", "unknown"}, r.Context.VariantOrigin) || r.Context.SampleType == "" {
 		return bad("clinical context required")
 	}
 	if r.Context.VariantOrigin == "somatic_confirmed" {
 		return bad("constitutional rules do not support somatic variants")
 	}
-	if !regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*:[A-Za-z0-9_.-]+$`).MatchString(r.Context.DiseaseID) || !contains([]string{"AD", "AR", "XL", "XLD", "XLR", "SD", "MT"}, r.Context.Inheritance) || !contains([]string{"blood", "saliva", "buccal", "fibroblast", "tissue", "other", "unknown"}, r.Context.SampleType) {
+	validDisease := regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*:[A-Za-z0-9_.-]+$`).MatchString(r.Context.DiseaseID) || (inferContext && r.Context.DiseaseID == "")
+	validInheritance := contains([]string{"AD", "AR", "XL", "XLD", "XLR", "SD", "MT"}, r.Context.Inheritance) || (inferContext && r.Context.Inheritance == "unknown")
+	if !validDisease || !validInheritance || !contains([]string{"blood", "saliva", "buccal", "fibroblast", "tissue", "other", "unknown"}, r.Context.SampleType) {
 		return bad("invalid structured clinical context")
 	}
 	if r.Options.MaxSearches < 0 || r.Options.MaxSearches > 100 || !contains([]string{"", "acmg_2015_table", "svi_points"}, r.Options.CombinationMethod) {
@@ -107,7 +124,7 @@ func Validate(r *Request) error {
 			return bad("sequence engine requires variant only")
 		}
 		v := r.Variant
-		if !regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,80}$`).MatchString(v.Gene) || len(v.Ref) > 10000 || len(v.Alt) > 10000 {
+		if !(inferContext && v.Gene == "") && !regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,80}$`).MatchString(v.Gene) || len(v.Ref) > 10000 || len(v.Alt) > 10000 {
 			return bad("invalid gene or allele length")
 		}
 		for _, text := range []string{v.Transcript, v.HGVSc, v.HGVSp, v.Consequence} {
@@ -115,7 +132,7 @@ func Validate(r *Request) error {
 				return bad("invalid structured variant annotation")
 			}
 		}
-		if v.Pos < 1 || v.Gene == "" || !regexp.MustCompile(`^[ACGTN]+$`).MatchString(v.Ref) || !regexp.MustCompile(`^[ACGTN]+$`).MatchString(v.Alt) || v.Ref == v.Alt {
+		if v.Pos < 1 || (!inferContext && v.Gene == "") || !regexp.MustCompile(`^[ACGTN]+$`).MatchString(v.Ref) || !regexp.MustCompile(`^[ACGTN]+$`).MatchString(v.Alt) || v.Ref == v.Alt {
 			return bad("invalid variant")
 		}
 		if v.AlleleFrequency != nil && (*v.AlleleFrequency < 0 || *v.AlleleFrequency > 1) {
