@@ -11,6 +11,7 @@ import (
 	"github.com/pzweuj/sepilens/internal/ssrf"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 )
@@ -60,6 +61,18 @@ func (c *Client) request(ctx context.Context, r llm.GenerateRequest, stream bool
 	if model == "" {
 		return nil, errors.New("model is required")
 	}
+	endpoint, _ := url.Parse(c.cfg.BaseURL)
+	deepseekChat := endpoint != nil && strings.EqualFold(endpoint.Hostname(), "api.deepseek.com") && c.cfg.Protocol == llm.ProtocolOpenAIChat
+	system := r.System
+	if deepseekChat && r.JSONSchema != nil {
+		// DeepSeek Chat supports JSON mode rather than OpenAI's json_schema wire
+		// format. Include the schema in the prompt and still validate it locally.
+		schema, err := json.Marshal(r.JSONSchema)
+		if err != nil {
+			return nil, errors.New("invalid model schema")
+		}
+		system += "\nReturn only a JSON object conforming to this JSON Schema: " + string(schema)
+	}
 	p := map[string]any{"model": model, "stream": stream}
 	path := "responses"
 	if c.cfg.Protocol == llm.ProtocolOpenAIResponses {
@@ -74,12 +87,19 @@ func (c *Client) request(ctx context.Context, r llm.GenerateRequest, stream bool
 		}
 	} else {
 		path = "chat/completions"
-		p["messages"] = []map[string]string{{"role": "system", "content": r.System}, {"role": "user", "content": r.Prompt}}
+		p["messages"] = []map[string]string{{"role": "system", "content": system}, {"role": "user", "content": r.Prompt}}
 		if r.JSONSchema != nil {
 			p["response_format"] = map[string]any{"type": "json_schema", "json_schema": map[string]any{"name": "sepilens", "strict": true, "schema": r.JSONSchema}}
+			if deepseekChat {
+				p["response_format"] = map[string]any{"type": "json_object"}
+			}
 		}
 		if r.MaxTokens != nil {
 			p["max_completion_tokens"] = *r.MaxTokens
+			if deepseekChat {
+				delete(p, "max_completion_tokens")
+				p["max_tokens"] = *r.MaxTokens
+			}
 		}
 		if stream {
 			p["stream_options"] = map[string]bool{"include_usage": true}
@@ -124,7 +144,7 @@ func (c *Client) request(ctx context.Context, r llm.GenerateRequest, stream bool
 			}
 			p["input"] = input
 		} else {
-			messages := []any{map[string]any{"role": "system", "content": r.System}, map[string]any{"role": "user", "content": r.Prompt}}
+			messages := []any{map[string]any{"role": "system", "content": system}, map[string]any{"role": "user", "content": r.Prompt}}
 			for _, turn := range r.History {
 				calls := []any{}
 				for _, call := range turn.Calls {
