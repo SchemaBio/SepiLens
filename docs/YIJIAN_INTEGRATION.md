@@ -43,3 +43,13 @@ SepiLens 不安装、导入或查询医学注释数据库。YiJian 通过 API Ke
 ## 合成响应示例
 
 `*.response.synthetic.json` 是使用对应请求与合成来源策略，通过实际服务捕获的响应。ACMG/CNV 使用 simulation，SVC 使用 experimental；均 clinical_use=forbidden、settlement_eligible=false。随机 assessment_id、输入散列和规则散列仅描述该次工程运行，不是黄金临床期望。联网请求先返回任务标识，最终使用相同结果结构，并增加 AI 提议、裁决和用量。
+
+## 仅接入 AI 与可选规则批准
+
+设置 SEPILENS_AI_MODE=enabled、SEPILENS_AI_ONLY=true，仅接受 mode=ai_assisted，拒绝 mode=local。默认 SEPILENS_REQUIRE_RULE_APPROVAL=true 保持签名批准门禁；自部署 AI 证据整理可设为 false，不加载批准文件也能提交 AI 任务。未批准引擎的结果为 evidence_only、clinical_use=forbidden、settlement_eligible=false，引擎 enabled 仍为 false；能力中的 ai_available 独立表示 AI 入口可用。来源校验、模型校验和人工审核仍执行；失败不回退为本地评估。SVC 始终为实验模式。
+
+## AI HPO 术语提取
+
+POST /v2/hpo/extract，使用现有 Bearer 服务密钥。请求包含 text（1–10000 个字符）和 options.provider_profile_id，可选 max_candidates（最多100）。仅使用 AI，allow_local_fallback 必须为 false。响应为同步的 HPO ExtractionResult，execution_mode=model、degraded=false，terms 含 canonical HPO ID、polarity、Unicode codepoint span_start/span_end，候选编号和原文位置经过校验；否定、疑似和家族史须单独复核。模型失败返回错误，不返回本地匹配结果。此接口不建立持久化任务，不保存原始文本。需 SEPILENS_AI_MODE=enabled 和已保存的模型 profile。
+
+SEPILENS_HPO_KNOWLEDGE_DIR 默认 knowledge/hpo；镜像内置作者授权的 DeepHPO 术语与名称资源，仅用于候选匹配和 ID 校验。它不替代上游提供的医学注释证据。YiJian 的本地自动提取独立在浏览器完成，点击 AI 辅助提取才调用此接口。

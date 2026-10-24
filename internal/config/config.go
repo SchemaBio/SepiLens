@@ -15,6 +15,9 @@ var (
 )
 
 type Config struct {
+	HPOKnowledgeDir       string
+	AllowUnapprovedAI     bool
+	AIOnly                bool
 	MaxEvidenceBytes      int64
 	SourcePolicies        map[string]SourcePolicy
 	AIMode                string
@@ -133,6 +136,9 @@ func Load() (Config, error) {
 
 	return Config{
 		MaxEvidenceBytes:      maxBytes,
+		HPOKnowledgeDir:       getEnv("SEPILENS_HPO_KNOWLEDGE_DIR", "./knowledge/hpo"),
+		AllowUnapprovedAI:     !parseBool(getEnv("SEPILENS_REQUIRE_RULE_APPROVAL", "true"), true),
+		AIOnly:                parseBool(getEnv("SEPILENS_AI_ONLY", "false"), false),
 		SourcePolicies:        policies,
 		AIMode:                aiMode,
 		MasterKey:             masterKey,

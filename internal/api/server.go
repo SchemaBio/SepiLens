@@ -15,6 +15,7 @@ import (
 	"github.com/pzweuj/sepilens/internal/jobs"
 	"github.com/pzweuj/sepilens/internal/profiles"
 	"github.com/pzweuj/sepilens/internal/retrieval"
+	"github.com/pzweuj/sepilens/internal/validation"
 	"github.com/pzweuj/sepilens/internal/workflow"
 )
 
@@ -93,6 +94,9 @@ type CapabilitiesResponse struct {
 	Version                         string              `json:"version"`
 	Engines                         []engine.Descriptor `json:"engines"`
 	RetrievalModes                  []string            `json:"retrieval_modes"`
+	AIMode                          string              `json:"ai_mode"`
+	RuleApprovalRequired            bool                `json:"rule_approval_required"`
+	EvaluationModes                 []string            `json:"evaluation_modes"`
 	SimulationEnabled               bool                `json:"simulation_enabled"`
 	SupportedProtocols              []string            `json:"supported_protocols"`
 }
@@ -103,12 +107,16 @@ func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
 		version = "0.3.0-dev"
 	}
 	resp := CapabilitiesResponse{
-		Version:                         version,
-		HPOCandidateExtractionAvailable: s.hpoExtractor != nil,
+		Version: version,
+		AIMode:  s.cfg.AIMode, RuleApprovalRequired: !s.cfg.AllowUnapprovedAI, EvaluationModes: []string{"ai_assisted"},
+		HPOCandidateExtractionAvailable: s.hpoExtractor != nil && s.cfg.AIMode == "enabled",
 		Engines:                         s.descriptors(),
 		RetrievalModes:                  []string{"off", "targeted", "deep"},
 		SimulationEnabled:               s.cfg.Simulation,
 		SupportedProtocols:              []string{"openai_responses", "openai_chat"},
+	}
+	if !s.cfg.AIOnly {
+		resp.EvaluationModes = append(resp.EvaluationModes, "local")
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(resp)
@@ -123,6 +131,19 @@ func (s *Server) handleRulesets(w http.ResponseWriter, r *http.Request) {
 func (s *Server) descriptors() []engine.Descriptor {
 	out := engine.All()
 	for i := range out {
+		if out[i].ID == engine.EngineHPOExtract {
+			out[i].AIAvailable = s.hpoExtractor != nil && s.cfg.AIMode == "enabled"
+			continue
+		}
+		out[i].AIAvailable = s.cfg.AIMode == "enabled" && out[i].ID != engine.EngineHPOExtract && (out[i].ID == engine.EngineSVCv4 || s.cfg.AllowUnapprovedAI)
+		if _, approved := s.approvals[out[i].ID]; approved && s.cfg.AIMode == "enabled" {
+			out[i].AIAvailable = true
+		}
+		if out[i].AIAvailable && out[i].ID != engine.EngineSVCv4 {
+			if content, _, err := validation.Rules(out[i].ID); err == nil {
+				out[i].RulesetHash = engine.Hash(content)
+			}
+		}
 		if out[i].ID == engine.EngineSVCv4 {
 			continue
 		}

@@ -11,6 +11,124 @@
     }
   ],
   "paths": {
+    "/v2/hpo/extract": {
+      "post": {
+        "summary": "Synchronous AI HPO extraction; original text is not persisted; local fallback prohibited",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HPOExtractionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Structured error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Structured error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Structured error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Structured error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Structured error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Structured error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Structured error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Structured error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/APIHPOExtractRequest"
+              }
+            }
+          }
+        }
+      }
+    },
     "/v2/evaluations": {
       "post": {
         "summary": "Evaluate external JSON evidence: local 200; LLM queued 202",
@@ -2004,6 +2122,21 @@
               "type": "string"
             }
           },
+          "ai_mode": {
+            "type": "string"
+          },
+          "rule_approval_required": {
+            "type": "boolean"
+          },
+          "evaluation_modes": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
           "simulation_enabled": {
             "type": "boolean"
           },
@@ -2019,9 +2152,12 @@
         },
         "additionalProperties": false,
         "required": [
+          "ai_mode",
           "engines",
+          "evaluation_modes",
           "hpo_candidate_extraction_available",
           "retrieval_modes",
+          "rule_approval_required",
           "simulation_enabled",
           "supported_protocols",
           "version"
@@ -2133,6 +2269,41 @@
           "settlement_eligible",
           "source_policy_hash",
           "usage"
+        ]
+      },
+      "APIHPOExtractOptions": {
+        "type": "object",
+        "properties": {
+          "provider_profile_id": {
+            "type": "string"
+          },
+          "max_candidates": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "allow_local_fallback": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "provider_profile_id"
+        ]
+      },
+      "APIHPOExtractRequest": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "options": {
+            "$ref": "#/components/schemas/APIHPOExtractOptions"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "options",
+          "text"
         ]
       },
       "APIProviderTestRequest": {
@@ -3554,6 +3725,9 @@
       "EngineDescriptor": {
         "type": "object",
         "properties": {
+          "ai_available": {
+            "type": "boolean"
+          },
           "experimental_available": {
             "type": "boolean"
           },
@@ -3581,6 +3755,7 @@
         },
         "additionalProperties": false,
         "required": [
+          "ai_available",
           "enabled",
           "experimental_available",
           "guideline_version",
@@ -3890,6 +4065,181 @@
           "title",
           "type",
           "validation_status"
+        ]
+      },
+      "HPOExtractionItem": {
+        "type": "object",
+        "properties": {
+          "span_start": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "span_end": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "source": {
+            "type": "string"
+          },
+          "hpo": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "name_cn": {
+            "type": "string"
+          },
+          "definition": {
+            "type": "string"
+          },
+          "definition_cn": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "string"
+          },
+          "remark": {
+            "type": "string"
+          },
+          "original_symptom": {
+            "type": "string"
+          },
+          "polarity": {
+            "type": "string"
+          },
+          "review_required": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "confidence",
+          "definition",
+          "definition_cn",
+          "hpo",
+          "name",
+          "name_cn",
+          "polarity",
+          "remark",
+          "review_required",
+          "source",
+          "span_end",
+          "span_start"
+        ]
+      },
+      "HPOExtractionResult": {
+        "type": "object",
+        "properties": {
+          "execution_mode": {
+            "type": "string"
+          },
+          "degraded": {
+            "type": "boolean"
+          },
+          "terms": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/HPOExtractionItem"
+            }
+          },
+          "preprocess": {
+            "$ref": "#/components/schemas/HPOPreprocessResult"
+          },
+          "candidate_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "candidate_count",
+          "degraded",
+          "duration_ms",
+          "execution_mode",
+          "preprocess",
+          "terms"
+        ]
+      },
+      "HPOPreprocessResult": {
+        "type": "object",
+        "properties": {
+          "symptoms": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "medical_history": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "diagnosis": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "negated_symptoms": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "family_history": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "inferred_symptoms": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "raw_extraction": {
+            "type": "string"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "diagnosis",
+          "family_history",
+          "medical_history",
+          "negated_symptoms",
+          "symptoms"
         ]
       },
       "HPOTerm": {

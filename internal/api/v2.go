@@ -33,6 +33,7 @@ type evaluationInput struct {
 
 func (s *Server) routesV2(r chi.Router) {
 	r.Post("/evaluations", s.handleEvaluationV2)
+	r.Post("/hpo/extract", s.handleHPOExtract)
 	r.Get("/capabilities", s.handleCapabilities)
 	r.Get("/rulesets", s.handleRulesets)
 	r.Put("/providers/{profile_id}", s.handleProfileSave)
@@ -86,6 +87,10 @@ func (s *Server) handleEvaluationV2(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, r, 422, ErrCodeBadRequest, err.Error(), false)
 		return
 	}
+	if s.cfg.AIOnly && req.Mode != "ai_assisted" {
+		WriteError(w, r, 403, ErrCodeBadRequest, "only AI-assisted evaluations are enabled", false)
+		return
+	}
 	if s.queue == nil {
 		WriteError(w, r, 503, ErrCodeInternalError, "worker unavailable", true)
 		return
@@ -98,12 +103,17 @@ func (s *Server) handleEvaluationV2(w http.ResponseWriter, r *http.Request) {
 		kind = "evidence_only"
 	} else if s.cfg.Simulation {
 		kind = "simulation"
-	} else if _, ok := s.approvals[id]; !ok {
+	} else if _, ok := s.approvals[id]; !ok && !(req.Mode == "ai_assisted" && s.cfg.AllowUnapprovedAI) {
 		WriteError(w, r, 409, ErrCodeRulesetNotAvailable, "signed medical rule approval required", false)
 		return
 	}
+	if req.Mode == "ai_assisted" && id != engine.EngineSVCv4 {
+		if _, approved := s.approvals[id]; !approved && s.cfg.AllowUnapprovedAI {
+			kind = "evidence_only"
+		}
+	}
 	if req.Mode == "ai_assisted" {
-		if s.cfg.AIMode != "enabled" || (kind != "production" && kind != "experimental") {
+		if s.cfg.AIMode != "enabled" || (kind != "production" && kind != "experimental" && !(kind == "evidence_only" && s.cfg.AllowUnapprovedAI)) {
 			WriteError(w, r, 409, ErrCodeRulesetNotAvailable, "AI requires explicit enablement and approved rules or experimental SVC", false)
 			return
 		}

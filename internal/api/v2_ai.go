@@ -120,7 +120,7 @@ func (s *Server) runAIV2(ctx context.Context, t workflow.Task, in evaluationInpu
 		if a, ok := s.approvals[engine.EngineID(t.EngineID)]; !ok || a.ContentHash != in.RulesetHash {
 			return fail(agent.ErrProvider)
 		}
-	} else if t.Kind != "experimental" {
+	} else if t.Kind != "experimental" && !(t.Kind == "evidence_only" && s.cfg.AllowUnapprovedAI) {
 		return fail(agent.ErrProvider)
 	}
 	p, err := s.profiles.Get(ctx, t.TenantID, in.Request.Options.ProviderProfileID, in.ProfileVersion)

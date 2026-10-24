@@ -1,6 +1,6 @@
 # 部署、存储和不兼容升级
 
-本版本不需要医学数据库、bundle、HPO 资源或启动下载。YiJian 在 API 请求中提供材料。启动前设置 `.env.example` 中的主密钥、API Key、提交权限和来源策略，参见 [对接契约](YIJIAN_INTEGRATION.md)。`serve -rules-dir DIR` 加载独立验证报告和签名批准；默认不启用医学引擎。AI 默认 disabled，启用后还需版本化 provider profile。
+本版本不需要医学注释数据库、bundle 或启动下载；HPO AI 提取使用镜像内置的术语字典。YiJian 在 API 请求中提供材料。启动前设置 `.env.example` 中的主密钥、API Key、提交权限和来源策略，参见 [对接契约](YIJIAN_INTEGRATION.md)。`serve -rules-dir DIR` 加载独立验证报告和签名批准；默认不启用医学引擎。AI 默认 disabled，启用后还需版本化 provider profile。
 
 ## 业务存储
 
@@ -21,3 +21,7 @@
 探针 /healthz、/readyz 不要求 API Key，其他路径需要认证。HTTPS 反向代理由部署者提供。模型默认仅公网 HTTPS，显式配置才允许私网模型；官方检索保留默认 SSRF 防护。日志不含患者内容、Key 或完整外部错误。
 
 Dockerfile 和 scripts/images.ps1 不再复制医学参考资源；镜像以非 root 用户运行，仅挂载业务数据和受保护的密钥／配置。使用新命名卷部署，保留旧卷作为独立归档。双平台 smoke 使用 scripts/smoke.py；OCI 构建和容器运行需本机 Docker，未运行时不声称容器验收通过。
+
+## 仅接入 AI 与可选规则批准
+
+设置 SEPILENS_AI_MODE=enabled、SEPILENS_AI_ONLY=true，仅接受 mode=ai_assisted，拒绝 mode=local。默认 SEPILENS_REQUIRE_RULE_APPROVAL=true 保持签名批准门禁；自部署 AI 证据整理可设为 false，不加载批准文件也能提交 AI 任务。未批准引擎的结果为 evidence_only、clinical_use=forbidden、settlement_eligible=false，引擎 enabled 仍为 false；能力中的 ai_available 独立表示 AI 入口可用。来源校验、模型校验和人工审核仍执行；失败不回退为本地评估。SVC 始终为实验模式。

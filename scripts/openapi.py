@@ -57,6 +57,7 @@ def op(path,method,summary,request=None,response=None,status="200",responses=Non
  if responses:item["responses"].update(responses)
  for code in ("400","401","403","404","409","413","422","500","503"):item["responses"][code]={"description":"Structured error","content":{"application/json":{"schema":ref("api","ErrorEnvelope")}}}
  paths.setdefault(path,{})[method]=item
+op("/v2/hpo/extract","post","Synchronous AI HPO extraction; original text is not persisted; local fallback prohibited",("api","HPOExtractRequest"),("hpo","ExtractionResult"))
 op("/v2/evaluations","post","Evaluate external JSON evidence: local 200; LLM queued 202",("assessment","Request"),("api","EvaluationResultPayload"),responses={"202":{"description":"LLM job accepted; job_id, assessment_id, status, is_replayed"}})
 paths["/v2/evaluations"]["post"]["parameters"].append({"name":"Idempotency-Key","in":"header","required":False,"schema":{"type":"string","maxLength":256}})
 for path,response in [("capabilities",("api","CapabilitiesResponse")),("rulesets",None),("jobs/{job_id}",("jobs","Job")),("jobs/{job_id}/result",("api","EvaluationResultPayload")),("jobs/{job_id}/audit",None),("evaluations/{id}/evidence",("evidence","EvidenceSnapshot"))]:op("/v2/"+path,"get",path,response=response)

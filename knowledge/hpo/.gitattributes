@@ -1,0 +1,3 @@
+# Preserve the authorized source files and their manifest checksums on all hosts.
+hpo_terms_cn.json -text -whitespace
+hpo_names.txt -text -whitespace

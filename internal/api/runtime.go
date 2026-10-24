@@ -6,6 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/pzweuj/sepilens/internal/engine"
 	"github.com/pzweuj/sepilens/internal/evidence"
+	"github.com/pzweuj/sepilens/internal/hpo"
 	"github.com/pzweuj/sepilens/internal/jobs"
 	"github.com/pzweuj/sepilens/internal/profiles"
 	"github.com/pzweuj/sepilens/internal/secure"
@@ -17,6 +18,13 @@ import (
 func (s *Server) Start(ctx context.Context) error {
 	if s.queue != nil {
 		return errors.New("server already started")
+	}
+	if s.cfg.HPOKnowledgeDir != "" {
+		index, err := hpo.LoadDefaultIndex(s.cfg.HPOKnowledgeDir)
+		if err != nil {
+			return errors.New("HPO terminology could not be loaded")
+		}
+		s.hpoExtractor = hpo.NewExtractor(index, nil)
 	}
 	if s.db == nil {
 		return errors.New("database required")

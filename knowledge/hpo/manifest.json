@@ -1,0 +1,8 @@
+{
+  "source": "DeepHPO",
+  "authorization": "Explicit permission from sole author, 2026-10-24",
+  "files": {
+    "hpo_terms_cn.json": "5e6daf1019f52714d5be0cab52fbd4c5100cb67763a5bcc8b055b7d73b04f286",
+    "hpo_names.txt": "2991b5fd0e72ec5565fe353caf7c439734807dcf6fd0aba49eaa63f10aa7481b"
+  }
+}

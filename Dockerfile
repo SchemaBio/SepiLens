@@ -21,6 +21,7 @@ RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 
 COPY --from=builder /bin/sepilens /app/sepilens
+COPY --from=builder /src/knowledge/hpo /app/knowledge/hpo
 COPY --from=builder /src/LICENSE /src/THIRD_PARTY_NOTICES.md /app/
 COPY --from=builder /src/internal/rules/svcv4/UPSTREAM_LICENSE /app/SVC_UPSTREAM_LICENSE
 
