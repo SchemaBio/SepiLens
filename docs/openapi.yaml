@@ -3074,6 +3074,9 @@
       "AssessmentAISampleContext": {
         "type": "object",
         "properties": {
+          "analysis_mode": {
+            "type": "string"
+          },
           "gender": {
             "type": "string"
           },
@@ -3909,6 +3912,9 @@
       "EngineDescriptor": {
         "type": "object",
         "properties": {
+          "billing_available": {
+            "type": "boolean"
+          },
           "ai_available": {
             "type": "boolean"
           },
@@ -3940,6 +3946,7 @@
         "additionalProperties": false,
         "required": [
           "ai_available",
+          "billing_available",
           "enabled",
           "experimental_available",
           "guideline_version",

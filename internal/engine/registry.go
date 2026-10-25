@@ -27,6 +27,7 @@ const (
 )
 
 type Descriptor struct {
+	BillingAvailable      bool     `json:"billing_available"`
 	AIAvailable           bool     `json:"ai_available"`
 	ExperimentalAvailable bool     `json:"experimental_available"`
 	ID                    EngineID `json:"id"`

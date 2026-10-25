@@ -103,17 +103,17 @@ func (s *Server) handleEvaluationV2(w http.ResponseWriter, r *http.Request) {
 		kind = "evidence_only"
 	} else if s.cfg.Simulation {
 		kind = "simulation"
-	} else if _, ok := s.approvals[id]; !ok && !(req.Mode == "ai_assisted" && s.cfg.AllowUnapprovedAI) {
+	} else if _, ok := s.approvals[id]; !ok && !(req.Mode == "ai_assisted" && s.cfg.AllowsCandidateAI(string(id))) {
 		WriteError(w, r, 409, ErrCodeRulesetNotAvailable, "signed medical rule approval required", false)
 		return
 	}
 	if req.Mode == "ai_assisted" && id != engine.EngineSVCv4 {
-		if _, approved := s.approvals[id]; !approved && s.cfg.AllowUnapprovedAI {
+		if _, approved := s.approvals[id]; !approved && s.cfg.AllowsCandidateAI(string(id)) {
 			kind = "evidence_only"
 		}
 	}
 	if req.Mode == "ai_assisted" {
-		if s.cfg.AIMode != "enabled" || (kind != "production" && kind != "experimental" && !(kind == "evidence_only" && s.cfg.AllowUnapprovedAI)) {
+		if s.cfg.AIMode != "enabled" || (kind != "production" && kind != "experimental" && !(kind == "evidence_only" && s.cfg.AllowsCandidateAI(string(id)))) {
 			WriteError(w, r, 409, ErrCodeRulesetNotAvailable, "AI requires explicit enablement and approved rules or experimental SVC", false)
 			return
 		}

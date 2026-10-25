@@ -17,7 +17,10 @@ var (
 type Config struct {
 	RetrievalAllowFakeIP  bool
 	HPOKnowledgeDir       string
+	BillSVCAI             bool
+	BillACMGAI            bool
 	AllowUnapprovedAI     bool
+	AICandidateEngines    map[string]bool
 	AIOnly                bool
 	MaxEvidenceBytes      int64
 	SourcePolicies        map[string]SourcePolicy
@@ -75,6 +78,19 @@ func Load() (Config, error) {
 	aiMode := getEnv("SEPILENS_AI_MODE", "disabled")
 	if aiMode != "disabled" && aiMode != "enabled" {
 		return Config{}, errors.New("invalid AI mode")
+	}
+	candidates := map[string]bool{}
+	for _, id := range strings.Split(os.Getenv("SEPILENS_AI_CANDIDATE_ENGINES"), ",") {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		switch id {
+		case "acmg_amp_2015", "cnv_loss_2020", "cnv_gain_2020":
+			candidates[id] = true
+		default:
+			return Config{}, errors.New("unsupported AI candidate engine")
+		}
 	}
 	addr := getEnv("SEPILENS_ADDR", ":8080")
 	dataDir := getEnv("SEPILENS_DATA_DIR", "./data")
@@ -137,6 +153,9 @@ func Load() (Config, error) {
 
 	return Config{
 		MaxEvidenceBytes:      maxBytes,
+		AICandidateEngines:    candidates,
+		BillSVCAI:             parseBool(getEnv("SEPILENS_SVC_BILLING_ENABLED", "false"), false),
+		BillACMGAI:            parseBool(getEnv("SEPILENS_ACMG_BILLING_ENABLED", "false"), false),
 		HPOKnowledgeDir:       getEnv("SEPILENS_HPO_KNOWLEDGE_DIR", "./knowledge/hpo"),
 		AllowUnapprovedAI:     !parseBool(getEnv("SEPILENS_REQUIRE_RULE_APPROVAL", "true"), true),
 		AIOnly:                parseBool(getEnv("SEPILENS_AI_ONLY", "false"), false),
@@ -199,4 +218,9 @@ func parseBool(raw string, fallback bool) bool {
 	default:
 		return fallback
 	}
+}
+
+// Candidate AI availability never grants signed production rule approval.
+func (c Config) AllowsCandidateAI(id string) bool {
+	return c.AllowUnapprovedAI || c.AICandidateEngines[id]
 }

@@ -54,6 +54,7 @@ type AIContext struct {
 }
 
 type AISampleContext struct {
+	AnalysisMode         string              `json:"analysis_mode,omitempty"`
 	Gender               string              `json:"gender"`
 	Age                  *int                `json:"age"`
 	SampleType           string              `json:"sample_type"`

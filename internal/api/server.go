@@ -135,10 +135,11 @@ func (s *Server) descriptors() []engine.Descriptor {
 			out[i].AIAvailable = s.hpoExtractor != nil && s.cfg.AIMode == "enabled"
 			continue
 		}
-		out[i].AIAvailable = s.cfg.AIMode == "enabled" && out[i].ID != engine.EngineHPOExtract && (out[i].ID == engine.EngineSVCv4 || s.cfg.AllowUnapprovedAI)
+		out[i].AIAvailable = s.cfg.AIMode == "enabled" && out[i].ID != engine.EngineHPOExtract && (out[i].ID == engine.EngineSVCv4 || s.cfg.AllowsCandidateAI(string(out[i].ID)))
 		if _, approved := s.approvals[out[i].ID]; approved && s.cfg.AIMode == "enabled" {
 			out[i].AIAvailable = true
 		}
+		out[i].BillingAvailable = out[i].AIAvailable && (s.cfg.BillACMGAI && out[i].ID == engine.EngineACMG2015 || s.cfg.BillSVCAI && out[i].ID == engine.EngineSVCv4)
 		if out[i].AIAvailable && out[i].ID != engine.EngineSVCv4 {
 			if content, _, err := validation.Rules(out[i].ID); err == nil {
 				out[i].RulesetHash = engine.Hash(content)

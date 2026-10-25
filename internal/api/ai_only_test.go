@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/pzweuj/sepilens/internal/assessment"
 	"github.com/pzweuj/sepilens/internal/engine"
 	"github.com/pzweuj/sepilens/internal/jobs"
 	"github.com/pzweuj/sepilens/internal/llm"
@@ -29,11 +30,19 @@ func TestAIOnlyOptionalApprovalKeepsFormalRulesDisabled(t *testing.T) {
 			if w := callV2(s, "POST", "/v2/evaluations", req, "key", ""); w.Code != 409 {
 				t.Fatal("default approval gate changed", w.Code)
 			}
-			s.cfg.AllowUnapprovedAI = true
+			if id == "acmg_amp_2015" {
+				req.Package.AIContext = &assessment.AIContext{}
+			}
+			s.cfg.BillACMGAI = id == "acmg_amp_2015"
+			s.cfg.AllowUnapprovedAI = false
+			s.cfg.AICandidateEngines = map[string]bool{id: true}
 			var calls atomic.Int32
 			model := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				calls.Add(1)
-				content := fmt.Sprintf("%s", `{"criteria":[],"classification":"Pathogenic"}`)
+				content := fmt.Sprintf("%s", `{"clinical_summary":"Synthetic ACMG evidence reviewed","criteria":[{"code":"PM2","status":"insufficient_data","strength":"Supporting","score_hundredths":null,"points":null,"source_ids":[],"facts_confirmed":[],"change":"confirmed","override_reason":"Coverage unavailable"}],"classification":"VUS"}`)
+				if id != "acmg_amp_2015" {
+					content = `{"criteria":[],"classification":"Pathogenic"}`
+				}
 				_ = json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"message": map[string]any{"content": content}, "finish_reason": "stop"}}})
 			}))
 			defer model.Close()
@@ -51,10 +60,13 @@ func TestAIOnlyOptionalApprovalKeepsFormalRulesDisabled(t *testing.T) {
 			j := waitV2(t, s, accepted.ID)
 			var result EvaluationResultPayload
 			_ = json.Unmarshal([]byte(j.ResultJSON), &result)
-			if j.Status != jobs.StatusSucceeded || calls.Load() == 0 || result.AgentProposal == nil || result.ResultKind != "evidence_only" || result.ClinicalUse != "forbidden" || result.SettlementEligible {
+			if j.Status != jobs.StatusSucceeded || calls.Load() == 0 || result.AgentProposal == nil || result.ResultKind != "evidence_only" || result.ClinicalUse != "forbidden" || result.SettlementEligible != (id == "acmg_amp_2015") {
 				t.Fatal(j.Status, result)
 			}
 			for _, cap := range s.descriptors() {
+				if string(cap.ID) != id && (cap.ID == engine.EngineACMG2015 || cap.ID == engine.EngineCNVLoss2020 || cap.ID == engine.EngineCNVGain2020) && cap.AIAvailable {
+					t.Fatal("unrelated AI engine enabled", cap.ID)
+				}
 				if string(cap.ID) == id && (cap.Enabled || !cap.AIAvailable) {
 					t.Fatal("formal rule approval confused with AI availability", cap)
 				}
