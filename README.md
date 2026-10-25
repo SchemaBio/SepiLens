@@ -10,6 +10,8 @@ SepiLens 是供 YiJian 调用的 Go 变异评估服务。YiJian 提交结构化�
 
 `GET /healthz`、`GET /readyz` 用于探针；带 `Authorization: Bearer KEY` 调用 `GET /v2/capabilities` 查看固定五个引擎状态。POST `/v2/evaluations` 的 schema_version 固定 `sepilens-evaluation-2.0`；API Key 绑定租户、服务身份和提交权限。
 
+联网工具使用 NCBI E-utilities 定向查询 PubMed、ClinVar，并非通用网页搜索。如果本机代理采用 `198.18.0.0/15` Fake-IP DNS，可显式设置 `SEPILENS_RETRIEVAL_ALLOW_FAKE_IP=true`。该选项默认关闭，仅兼容 `eutils.ncbi.nlm.nih.gov:443/entrez/eutils/`，保留 TLS 证书验证、重定向禁用和其他私有地址拦截。检索失败不会被解释为无文献，也不会替代为本地评估。
+
 ## 对接与验证
 
 - [YiJian 对接契约](docs/YIJIAN_INTEGRATION.md)、[API](docs/API.md)、[OpenAPI](docs/openapi.yaml)、[合成示例](docs/examples/v2)

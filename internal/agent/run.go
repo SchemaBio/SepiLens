@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/pzweuj/sepilens/internal/llm"
@@ -61,6 +62,9 @@ func runContract(ctx context.Context, p llm.Provider, input any, execute ToolExe
 		out.InputTokens += response.InputTokens
 		out.OutputTokens += response.OutputTokens
 		if err != nil {
+			if errors.Is(err, llm.ErrInvalidOutput) {
+				return out, ErrOutputInvalid
+			}
 			return out, ErrProvider
 		}
 		if len(response.ToolCalls) == 0 {

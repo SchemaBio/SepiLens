@@ -29,10 +29,10 @@ func TestACMGAIReportsUnavailableLiteratureWithoutLocalFallback(t *testing.T) {
 			t.Error("imported clinical context missing from model")
 		}
 		if calls.Add(1) == 1 {
-			_, _ = w.Write([]byte(`{"choices":[{"message":{"tool_calls":[{"id":"search","type":"function","function":{"name":"search_literature","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}`))
+			_, _ = w.Write([]byte(`{"choices":[{"message":{"tool_calls":[{"id":"search","type":"function","function":{"name":"search_literature","arguments":"{}"}},{"id":"phenotype","type":"function","function":{"name":"get_phenotype","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}`))
 			return
 		}
-		if !strings.Contains(string(encoded), `unavailable`) {
+		if !strings.Contains(string(encoded), `unavailable`) || !strings.Contains(string(encoded), `unscored_context`) || !strings.Contains(string(encoded), `not_run`) {
 			t.Error("retrieval failure hidden from model")
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"message": map[string]any{"content": `{"clinical_summary":"Synthetic clinical context organized; inheritance unknown.","criteria":[{"code":"PM2","status":"insufficient_data","strength":"Moderate","score_hundredths":null,"points":null,"source_ids":[],"facts_confirmed":[],"change":"confirmed","override_reason":"coverage unavailable"}],"classification":"VUS"}`}, "finish_reason": "stop"}}})

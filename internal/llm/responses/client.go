@@ -292,7 +292,7 @@ func (c *Client) Generate(ctx context.Context, r llm.GenerateRequest) (llm.Gener
 	}
 	if r.JSONSchema != nil {
 		if err = llm.ValidateJSON(out.Content, r.JSONSchema); err != nil {
-			return out, errors.New("model output violates schema")
+			return out, fmt.Errorf("%w: schema validation failed", llm.ErrInvalidOutput)
 		}
 	}
 	c.mu.Lock()

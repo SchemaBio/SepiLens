@@ -3,7 +3,10 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"errors"
 )
+
+var ErrInvalidOutput = errors.New("invalid model output")
 
 type Protocol string
 

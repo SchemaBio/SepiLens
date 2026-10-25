@@ -130,7 +130,7 @@ func run() error {
 			}
 		}
 	}
-	client := ssrf.NewHTTPClient(false, nil)
+	client := ssrf.NewNCBIRetrievalClient(cfg.RetrievalAllowFakeIP)
 	retrievers := []retrieval.Retriever{&retrieval.OfficialRetriever{Database: "pubmed", HTTP: client}, &retrieval.OfficialRetriever{Database: "clinvar", HTTP: client}}
 	srv.SetSearchCoordinator(retrieval.NewSearchCoordinator(retrieval.CoordinatorConfig{}, retrievers))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

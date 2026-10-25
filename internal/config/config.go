@@ -15,6 +15,7 @@ var (
 )
 
 type Config struct {
+	RetrievalAllowFakeIP  bool
 	HPOKnowledgeDir       string
 	AllowUnapprovedAI     bool
 	AIOnly                bool
@@ -151,6 +152,7 @@ func Load() (Config, error) {
 		AuthMode:              authMode,
 		Simulation:            sim,
 		AllowPrivateEndpoints: allowPriv,
+		RetrievalAllowFakeIP:  parseBool(os.Getenv("SEPILENS_RETRIEVAL_ALLOW_FAKE_IP"), false),
 		LogFormat:             logFmt,
 		KeyToTenant:           keyMap,
 		Version:               getEnv("SEPILENS_VERSION", "0.3.0-dev"),
