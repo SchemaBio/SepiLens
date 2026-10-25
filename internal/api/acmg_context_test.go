@@ -16,57 +16,74 @@ import (
 	"testing"
 )
 
-func TestACMGAIReportsUnavailableLiteratureWithoutLocalFallback(t *testing.T) {
-	s := newV2Server(t)
-	s.approvals = map[engine.EngineID]engine.Approval{}
-	s.cfg.AllowUnapprovedAI = true
-	var calls atomic.Int32
-	model := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var body map[string]any
-		_ = json.NewDecoder(r.Body).Decode(&body)
-		encoded, _ := json.Marshal(body["messages"])
-		if !strings.Contains(string(encoded), "synthetic clinical background") || !strings.Contains(string(encoded), "SIFT_pred") {
-			t.Error("imported clinical context missing from model")
-		}
-		if calls.Add(1) == 1 {
-			_, _ = w.Write([]byte(`{"choices":[{"message":{"tool_calls":[{"id":"search","type":"function","function":{"name":"search_literature","arguments":"{}"}},{"id":"phenotype","type":"function","function":{"name":"get_phenotype","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}`))
-			return
-		}
-		if !strings.Contains(string(encoded), `unavailable`) || !strings.Contains(string(encoded), `unscored_context`) || !strings.Contains(string(encoded), `not_run`) {
-			t.Error("retrieval failure hidden from model")
-		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"message": map[string]any{"content": `{"clinical_summary":"Synthetic clinical context organized; inheritance unknown.","criteria":[{"code":"PM2","status":"insufficient_data","strength":"Moderate","score_hundredths":null,"points":null,"source_ids":[],"facts_confirmed":[],"change":"confirmed","override_reason":"coverage unavailable"}],"classification":"VUS"}`}, "finish_reason": "stop"}}})
-	}))
-	defer model.Close()
-	_, err := s.profiles.Save(context.Background(), "T", "mock", responses.Config{BaseURL: model.URL, APIKey: "synthetic", Model: "synthetic", Protocol: llm.ProtocolOpenAIChat})
-	if err != nil {
-		t.Fatal(err)
-	}
-	r := v2Fixture("acmg_amp_2015")
-	r.Mode = "ai_assisted"
-	r.Context.DiseaseID = ""
-	r.Context.Inheritance = ""
-	r.Context.SampleType = ""
-	r.Context.VariantOrigin = ""
-	r.Package.AIContext = &assessment.AIContext{VariantAnnotations: map[string]any{"SIFT_pred": "deleterious"}, Sample: &assessment.AISampleContext{ClinicalDiagnosis: assessment.AIClinicalDiagnosis{MainDiagnosis: "synthetic clinical background"}}}
-	r.Options.ProviderProfileID = "mock"
-	w := callV2(s, "POST", "/v2/evaluations", r, "key", "")
-	if w.Code != 202 {
-		t.Fatal(w.Code, w.Body.String())
-	}
-	var accepted struct {
-		ID string `json:"job_id"`
-	}
-	_ = json.Unmarshal(w.Body.Bytes(), &accepted)
-	j := waitV2(t, s, accepted.ID)
-	var result EvaluationResultPayload
-	_ = json.Unmarshal([]byte(j.ResultJSON), &result)
-	proposal, _ := result.AgentProposal.(map[string]any)
-	if j.Status != jobs.StatusSucceeded || calls.Load() != 2 || proposal["ai_assessment"] == nil || proposal["retrieval_status"] != "unavailable" || result.SettlementEligible {
-		t.Fatal(j.Status, result)
+func TestSequenceAIReportsUnavailableLiteratureWithoutLocalFallback(t *testing.T) {
+	for _, engineID := range []string{"acmg_amp_2015", "svc_v4"} {
+		t.Run(engineID, func(t *testing.T) {
+			s := newV2Server(t)
+			s.approvals = map[engine.EngineID]engine.Approval{}
+			s.cfg.AllowUnapprovedAI = true
+			var calls atomic.Int32
+			model := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var body map[string]any
+				_ = json.NewDecoder(r.Body).Decode(&body)
+				encoded, _ := json.Marshal(body["messages"])
+				if !strings.Contains(string(encoded), "synthetic clinical background") || !strings.Contains(string(encoded), "SIFT_pred") {
+					t.Error("imported clinical context missing from model")
+				}
+				if calls.Add(1) == 1 {
+					_, _ = w.Write([]byte(`{"choices":[{"message":{"tool_calls":[{"id":"search","type":"function","function":{"name":"search_literature","arguments":"{}"}},{"id":"phenotype","type":"function","function":{"name":"get_phenotype","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}`))
+					return
+				}
+				if !strings.Contains(string(encoded), `unavailable`) || !strings.Contains(string(encoded), `unscored_context`) || !strings.Contains(string(encoded), `not_run`) {
+					t.Error("retrieval failure hidden from model")
+				}
+				code, strength := "PM2", "Moderate"
+				if engineID == "svc_v4" {
+					code, strength = "PFD", ""
+				}
+				_ = json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"message": map[string]any{"content": strings.ReplaceAll(strings.ReplaceAll(`{"clinical_summary":"Synthetic clinical context organized; inheritance unknown.","criteria":[{"code":"ENGINE_CODE","status":"insufficient_data","strength":"ENGINE_STRENGTH","score_hundredths":null,"points":null,"source_ids":[],"facts_confirmed":[],"change":"confirmed","override_reason":"coverage unavailable"}],"classification":"VUS"}`, "ENGINE_CODE", code), "ENGINE_STRENGTH", strength)}, "finish_reason": "stop"}}})
+			}))
+			defer model.Close()
+			_, err := s.profiles.Save(context.Background(), "T", "mock", responses.Config{BaseURL: model.URL, APIKey: "synthetic", Model: "synthetic", Protocol: llm.ProtocolOpenAIChat})
+			if err != nil {
+				t.Fatal(err)
+			}
+			r := v2Fixture(engineID)
+			r.Package.Sources = nil
+			r.Package.Draft = nil
+			r.Package.DraftSourceIDs = nil
+			r.Options.AllowExperimental = engineID == "svc_v4"
+			r.Mode = "ai_assisted"
+			r.Context.DiseaseID = ""
+			r.Context.Inheritance = ""
+			r.Context.SampleType = ""
+			r.Context.VariantOrigin = ""
+			r.Package.AIContext = &assessment.AIContext{VariantAnnotations: map[string]any{"SIFT_pred": "deleterious"}, Sample: &assessment.AISampleContext{ClinicalDiagnosis: assessment.AIClinicalDiagnosis{MainDiagnosis: "synthetic clinical background"}}}
+			r.Options.ProviderProfileID = "mock"
+			w := callV2(s, "POST", "/v2/evaluations", r, "key", "")
+			if w.Code != 202 {
+				t.Fatal(w.Code, w.Body.String())
+			}
+			var accepted struct {
+				ID string `json:"job_id"`
+			}
+			_ = json.Unmarshal(w.Body.Bytes(), &accepted)
+			j := waitV2(t, s, accepted.ID)
+			var result EvaluationResultPayload
+			_ = json.Unmarshal([]byte(j.ResultJSON), &result)
+			proposal, _ := result.AgentProposal.(map[string]any)
+			if j.Status != jobs.StatusSucceeded || calls.Load() != 2 || proposal["ai_assessment"] == nil || proposal["retrieval_status"] != "unavailable" || result.SettlementEligible {
+				t.Fatal(j.Status, result)
+			}
+			if result.ClinicalUse != "forbidden" {
+				t.Fatal("inferred context became clinical output")
+			}
+			if engineID == "svc_v4" && (result.ResultKind != "experimental" || result.RuleEngineResult != nil) {
+				t.Fatal("SVC lost experimental boundary")
+			}
+		})
 	}
 }
-
 func TestACMGModelInputKeepsSampleHPOUnverified(t *testing.T) {
 	r := v2Fixture("acmg_amp_2015")
 	r.Context.HPOTerms = []string{"HP:0001250"}
