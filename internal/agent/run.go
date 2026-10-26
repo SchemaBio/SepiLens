@@ -24,12 +24,15 @@ type Trace struct {
 	Error  string          `json:"error,omitempty"`
 }
 type RunResult struct {
-	Raw          json.RawMessage `json:"assessment_json,omitempty"`
-	Assessment   Assessment      `json:"assessment"`
-	Trace        []Trace         `json:"tools"`
-	InputTokens  int             `json:"input_tokens"`
-	OutputTokens int             `json:"output_tokens"`
-	Rounds       int             `json:"rounds"`
+	ValidationErrors []string        `json:"output_validation_errors,omitempty"`
+	RejectedOutput   string          `json:"rejected_output,omitempty"`
+	Repairs          int             `json:"output_repairs,omitempty"`
+	Raw              json.RawMessage `json:"assessment_json,omitempty"`
+	Assessment       Assessment      `json:"assessment"`
+	Trace            []Trace         `json:"tools"`
+	InputTokens      int             `json:"input_tokens"`
+	OutputTokens     int             `json:"output_tokens"`
+	Rounds           int             `json:"rounds"`
 }
 
 func Run(ctx context.Context, p llm.Provider, input any, execute ToolExecutor) (RunResult, error) {
@@ -56,6 +59,20 @@ func runContract(ctx context.Context, p llm.Provider, input any, execute ToolExe
 	req := llm.GenerateRequest{Prompt: string(b), System: system, Tools: tools, JSONSchema: schema, MaxTokens: &maxTokens}
 	seen := map[string]bool{}
 	calls := 0
+	repair := func(response llm.GenerateResult, reason string) bool {
+		out.ValidationErrors = append(out.ValidationErrors, reason)
+		if len(response.Content) <= 256<<10 {
+			out.RejectedOutput = response.Content
+		}
+		if out.Repairs >= 1 || len(response.ToolCalls) > 0 || response.Content == "" {
+			return false
+		}
+		out.Repairs++
+		// Keep the same evidence and tool history; a format correction cannot run tools again.
+		req.Tools = nil
+		req.Prompt = string(b) + "\nThe previous final JSON failed structural validation: " + reason + ". Return corrected JSON only, matching the supplied schema exactly. Preserve the evidence limits; never invent facts, sources, scores or method inputs to satisfy a required property. Use null, empty strings or [] only as permitted by the schema. Do not call tools."
+		return true
+	}
 	for round := 0; round < 12; round++ {
 		out.Rounds++
 		response, err := p.Generate(ctx, req)
@@ -63,16 +80,33 @@ func runContract(ctx context.Context, p llm.Provider, input any, execute ToolExe
 		out.OutputTokens += response.OutputTokens
 		if err != nil {
 			if errors.Is(err, llm.ErrInvalidOutput) {
+				reason := "structured output invalid"
+				var detail *llm.SchemaValidationError
+				if errors.As(err, &detail) {
+					reason = detail.Error()
+				}
+				if repair(response, reason) {
+					continue
+				}
 				return out, ErrOutputInvalid
 			}
 			return out, ErrProvider
 		}
 		if len(response.ToolCalls) == 0 {
 			var parsed any
-			if len(response.Content) > 256<<10 || strictjson.Decode([]byte(response.Content), &parsed) != nil {
+			if len(response.Content) > 256<<10 {
+				return out, ErrOutputInvalid
+			}
+			if strictjson.Decode([]byte(response.Content), &parsed) != nil {
+				if repair(response, "$: invalid JSON or duplicate keys") {
+					continue
+				}
 				return out, ErrOutputInvalid
 			}
 			if err := llm.ValidateJSON(response.Content, schema); err != nil {
+				if repair(response, err.Error()) {
+					continue
+				}
 				return out, ErrOutputInvalid
 			}
 			if legacy {
@@ -81,6 +115,9 @@ func runContract(ctx context.Context, p llm.Provider, input any, execute ToolExe
 				out.Raw = json.RawMessage(response.Content)
 			}
 			return out, err
+		}
+		if out.Repairs > 0 {
+			return out, ErrOutputInvalid
 		}
 		turn := llm.ToolTurn{Calls: response.ToolCalls, ResponseItems: response.ResponseItems, ReasoningContent: response.ReasoningContent}
 		for _, call := range response.ToolCalls {
