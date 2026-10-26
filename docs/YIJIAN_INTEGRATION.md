@@ -63,3 +63,5 @@ AI CNV 请求可携带 `evidence_package.ai_context`，疾病、遗传模式、�
 Gain/Loss 在生成前预取官方文献，区分查询成功但无记录与检索故障。输出要求中文 `clinical_summary`、逐条 CNV 整数百分位分值、来源及 `cnv_context`（disease_id、inheritance、rationale、source_ids）。返回 `agent_proposal.sources` 供人工逐条核验；候选不自动进入正式规则结果。越界分值、未知引用和互斥正向条款拒绝交付；没有有效结构化条款或检索故障不得结算。
 
 YiJian 可预览并人工填入合法条款，再点击保存。第三节不能从类别分值反推编码基因数量；第四节的人工核对建议分值单独记录，不制造病例/家系数量，禁止与手工病例数量重复累计。保存保留 AI 请求及来源、采用时上下文和时间；后端按锁定 rubric 重新校验、汇总和分类。临床批准身份与商业交付资格始终分开。
+
+AI 导入的深度连续拷贝数估算在模型输入中单列 copy_number_estimate，copy_number 为未知；不取整，不作为已确认整数计数、嵌合或胚系证据。上游整数 CN（包括真实 0）保持，缺失值继续未知；正式 CNV 输入和规则的整数契约不变。

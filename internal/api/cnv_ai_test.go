@@ -135,3 +135,22 @@ func TestCNVModelDistinguishesZeroCopyFromUnknown(t *testing.T) {
 		t.Fatal("missing CN treated as zero")
 	}
 }
+
+func TestCNVModelSeparatesContinuousCopyEstimate(t *testing.T) {
+	for _, id := range []string{"cnv_loss_2020", "cnv_gain_2020"} {
+		r := v2Fixture(id)
+		r.Mode = "ai_assisted"
+		r.CNV.CopyNumber = 0
+		r.Package.AIContext = &assessment.AIContext{VariantAnnotations: map[string]any{"copyNumber": float64(1.73), "copyNumberEstimate": float64(1.73)}}
+		input := modelAssessmentInput(r, assessment.Result{}, nil)
+		cnv := input["cnv"].(map[string]any)
+		if cnv["copy_number"] != nil || cnv["copy_number_estimate"] != float64(1.73) {
+			t.Fatal("continuous estimate lost or rounded", cnv)
+		}
+		r.Package.AIContext.VariantAnnotations["copyNumber"] = float64(0)
+		cnv = modelAssessmentInput(r, assessment.Result{}, nil)["cnv"].(map[string]any)
+		if cnv["copy_number"] != float64(0) {
+			t.Fatal("zero count lost")
+		}
+	}
+}
