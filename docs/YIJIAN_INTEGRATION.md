@@ -53,3 +53,13 @@ SepiLens 不安装、导入或查询医学注释数据库。YiJian 通过 API Ke
 POST /v2/hpo/extract，使用现有 Bearer 服务密钥。请求包含 text（1–10000 个字符）和 options.provider_profile_id，可选 max_candidates（最多100）。仅使用 AI，allow_local_fallback 必须为 false。响应为同步的 HPO ExtractionResult，execution_mode=model、degraded=false，terms 含 canonical HPO ID、polarity、Unicode codepoint span_start/span_end，候选编号和原文位置经过校验；否定、疑似和家族史须单独复核。模型失败返回错误，不返回本地匹配结果。此接口不建立持久化任务，不保存原始文本。需 SEPILENS_AI_MODE=enabled 和已保存的模型 profile。
 
 SEPILENS_HPO_KNOWLEDGE_DIR 默认 knowledge/hpo；镜像内置作者授权的 DeepHPO 术语与名称资源，仅用于候选匹配和 ID 校验。它不替代上游提供的医学注释证据。YiJian 的本地自动提取独立在浏览器完成，点击 AI 辅助提取才调用此接口。
+
+## CNV AI 候选与商业交付
+
+`SEPILENS_AI_CANDIDATE_ENGINES` 可显式列入 `cnv_loss_2020,cnv_gain_2020`。保持正式规则签名批准门禁；`enabled=false` 不表示 `ai_available=false`。`SEPILENS_CNV_BILLING_ENABLED` 默认 false，仅控制 CNV AI 候选交付的计费资格。
+
+AI CNV 请求可携带 `evidence_package.ai_context`，疾病、遗传模式、样本类型和来源允许未知；上下文仅作未核验输入，不授予医学事实可信身份。CNV 仍要求明确 GRCh37/38 及正整数一基闭区间；上游必须依据已确认格式转换 BED，不猜测未知格式。零拷贝数保留。
+
+Gain/Loss 在生成前预取官方文献，区分查询成功但无记录与检索故障。输出要求中文 `clinical_summary`、逐条 CNV 整数百分位分值、来源及 `cnv_context`（disease_id、inheritance、rationale、source_ids）。返回 `agent_proposal.sources` 供人工逐条核验；候选不自动进入正式规则结果。越界分值、未知引用和互斥正向条款拒绝交付；没有有效结构化条款或检索故障不得结算。
+
+YiJian 可预览并人工填入合法条款，再点击保存。第三节不能从类别分值反推编码基因数量；第四节的人工核对建议分值单独记录，不制造病例/家系数量，禁止与手工病例数量重复累计。保存保留 AI 请求及来源、采用时上下文和时间；后端按锁定 rubric 重新校验、汇总和分类。临床批准身份与商业交付资格始终分开。

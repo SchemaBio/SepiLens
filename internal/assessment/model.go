@@ -87,7 +87,7 @@ type AIAffectedMember struct {
 }
 
 func InferClinicalContext(r Request) bool {
-	return (r.EngineID == "acmg_amp_2015" || r.EngineID == "svc_v4" && r.Options.AllowExperimental) && r.Mode == "ai_assisted" && r.Package.AIContext != nil
+	return (r.EngineID == "acmg_amp_2015" || r.EngineID == "cnv_loss_2020" || r.EngineID == "cnv_gain_2020" || r.EngineID == "svc_v4" && r.Options.AllowExperimental) && r.Mode == "ai_assisted" && r.Package.AIContext != nil
 }
 
 type Object struct {

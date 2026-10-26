@@ -19,6 +19,7 @@ type Config struct {
 	HPOKnowledgeDir       string
 	BillSVCAI             bool
 	BillACMGAI            bool
+	BillCNVAI             bool
 	AllowUnapprovedAI     bool
 	AICandidateEngines    map[string]bool
 	AIOnly                bool
@@ -155,6 +156,7 @@ func Load() (Config, error) {
 		MaxEvidenceBytes:      maxBytes,
 		AICandidateEngines:    candidates,
 		BillSVCAI:             parseBool(getEnv("SEPILENS_SVC_BILLING_ENABLED", "false"), false),
+		BillCNVAI:             parseBool(getEnv("SEPILENS_CNV_BILLING_ENABLED", "false"), false),
 		BillACMGAI:            parseBool(getEnv("SEPILENS_ACMG_BILLING_ENABLED", "false"), false),
 		HPOKnowledgeDir:       getEnv("SEPILENS_HPO_KNOWLEDGE_DIR", "./knowledge/hpo"),
 		AllowUnapprovedAI:     !parseBool(getEnv("SEPILENS_REQUIRE_RULE_APPROVAL", "true"), true),

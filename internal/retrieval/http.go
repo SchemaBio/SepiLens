@@ -130,10 +130,17 @@ func (r *OfficialRetriever) retrieveOnce(ctx context.Context, q Query) ([]eviden
 	if q.Gene == "" && q.HGVS == "" && q.Chrom == "" {
 		return nil, nil
 	}
-	if r.Database == "pubmed" && q.Gene == "" && q.HGVS == "" && len(q.IDs) == 0 {
+	if r.Database == "pubmed" && q.Gene == "" && q.HGVS == "" && len(q.IDs) == 0 && !(strings.HasPrefix(q.VariantType, "cnv_") && q.Start > 0 && q.End >= q.Start) {
 		return nil, nil
 	}
 	term := strings.TrimSpace(q.Gene + " " + q.HGVS)
+	if r.Database == "pubmed" && strings.HasPrefix(q.VariantType, "cnv_") && q.Start > 0 && q.End >= q.Start {
+		event := "duplication"
+		if q.VariantType == "cnv_loss" {
+			event = "deletion"
+		}
+		term = strings.TrimSpace(term + fmt.Sprintf(" chromosome %s %s %d %d", strings.TrimPrefix(q.Chrom, "chr"), event, q.Start, q.End))
+	}
 	if r.Database == "clinvar" {
 		position := fmt.Sprintf("%d", q.Pos)
 		if q.Start > 0 && q.End >= q.Start {

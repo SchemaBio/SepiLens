@@ -139,7 +139,7 @@ func (s *Server) descriptors() []engine.Descriptor {
 		if _, approved := s.approvals[out[i].ID]; approved && s.cfg.AIMode == "enabled" {
 			out[i].AIAvailable = true
 		}
-		out[i].BillingAvailable = out[i].AIAvailable && (s.cfg.BillACMGAI && out[i].ID == engine.EngineACMG2015 || s.cfg.BillSVCAI && out[i].ID == engine.EngineSVCv4)
+		out[i].BillingAvailable = out[i].AIAvailable && (s.cfg.BillACMGAI && out[i].ID == engine.EngineACMG2015 || s.cfg.BillSVCAI && out[i].ID == engine.EngineSVCv4 || s.cfg.BillCNVAI && (out[i].ID == engine.EngineCNVLoss2020 || out[i].ID == engine.EngineCNVGain2020))
 		if out[i].AIAvailable && out[i].ID != engine.EngineSVCv4 {
 			if content, _, err := validation.Rules(out[i].ID); err == nil {
 				out[i].RulesetHash = engine.Hash(content)

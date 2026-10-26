@@ -82,7 +82,7 @@ func Validate(r *Request) error {
 	bad := func(s string) error { return errors.New(s) }
 	inferContext := InferClinicalContext(*r)
 	if r.Package.AIContext != nil && !inferContext {
-		return bad("AI context requires AI-assisted ACMG or explicitly experimental SVC")
+		return bad("AI context requires AI-assisted ACMG/CNV or explicitly experimental SVC")
 	}
 	if inferContext {
 		if r.Context.Inheritance == "" {
