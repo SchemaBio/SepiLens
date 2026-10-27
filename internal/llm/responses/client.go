@@ -189,7 +189,10 @@ func (c *Client) request(ctx context.Context, r llm.GenerateRequest, stream bool
 }
 
 type wire struct {
-	Status string `json:"status"`
+	Status            string `json:"status"`
+	IncompleteDetails struct {
+		Reason string `json:"reason"`
+	} `json:"incomplete_details"`
 	Output []struct {
 		Type      string `json:"type"`
 		CallID    string `json:"call_id"`
@@ -270,6 +273,9 @@ func (c *Client) Generate(ctx context.Context, r llm.GenerateRequest) (llm.Gener
 		if json.Unmarshal(b, &raw) == nil {
 			out.ResponseItems = raw.Output
 		}
+	}
+	if (c.cfg.Protocol == llm.ProtocolOpenAIChat && out.FinishReason == "length") || (c.cfg.Protocol == llm.ProtocolOpenAIResponses && w.Status == "incomplete" && w.IncompleteDetails.Reason == "max_output_tokens") {
+		return out, llm.ErrOutputLimit
 	}
 	if len(out.ToolCalls) > 0 {
 		if len(r.Tools) == 0 || len(out.ToolCalls) > 100 {

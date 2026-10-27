@@ -24,6 +24,8 @@ type Trace struct {
 	Error  string          `json:"error,omitempty"`
 }
 type RunResult struct {
+	ProviderFailure  string          `json:"provider_failure,omitempty"`
+	FinishReason     string          `json:"finish_reason,omitempty"`
 	ValidationErrors []string        `json:"output_validation_errors,omitempty"`
 	RejectedOutput   string          `json:"rejected_output,omitempty"`
 	Repairs          int             `json:"output_repairs,omitempty"`
@@ -76,9 +78,29 @@ func runContract(ctx context.Context, p llm.Provider, input any, execute ToolExe
 	for round := 0; round < 12; round++ {
 		out.Rounds++
 		response, err := p.Generate(ctx, req)
+		// Store only allowlisted diagnostics; provider errors may contain private data.
+		switch response.FinishReason {
+		case "stop", "completed", "length", "incomplete", "tool_calls", "content_filter":
+			out.FinishReason = response.FinishReason
+		default:
+			out.FinishReason = "unknown"
+		}
 		out.InputTokens += response.InputTokens
 		out.OutputTokens += response.OutputTokens
 		if err != nil {
+			if errors.Is(err, llm.ErrOutputLimit) {
+				out.ProviderFailure = "output_token_limit"
+				// One bounded continuation under the existing request and deadline.
+				// Discard partial tool calls and output; they are never executed or adopted.
+				if out.Repairs == 0 {
+					out.Repairs++
+					maxTokens = 16384
+					req.Tools = nil
+					req.Prompt = string(b) + "\nThe previous generation exceeded its output token budget. Return concise final JSON matching the schema; do not call tools. Preserve uncertainty and existing evidence; omit optional unassessed criteria. Do not invent facts or sources."
+					continue
+				}
+				return out, ErrOutputInvalid
+			}
 			if errors.Is(err, llm.ErrInvalidOutput) {
 				reason := "structured output invalid"
 				var detail *llm.SchemaValidationError
@@ -89,6 +111,24 @@ func runContract(ctx context.Context, p llm.Provider, input any, execute ToolExe
 					continue
 				}
 				return out, ErrOutputInvalid
+			}
+			out.ProviderFailure = "provider_request_failed"
+			switch err.Error() {
+			case "model transport unavailable":
+				out.ProviderFailure = "transport_unavailable"
+			case "model response unreadable":
+				out.ProviderFailure = "response_unreadable"
+			case "model response malformed":
+				out.ProviderFailure = "response_malformed"
+			case "model output incomplete":
+				out.ProviderFailure = "output_incomplete"
+			case "model returned no choices":
+				out.ProviderFailure = "no_choices"
+			case "incomplete tool call output":
+				out.ProviderFailure = "tool_output_incomplete"
+			}
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				out.ProviderFailure = "deadline_exceeded"
 			}
 			return out, ErrProvider
 		}
