@@ -52,6 +52,21 @@ func TestOfficialCrossCategoryCaps(t *testing.T) {
 		})
 	}
 }
+
+func TestDuplicateIdentityWithinOneSelectionIsRejected(t *testing.T) {
+	for _, item := range []struct {
+		id    string
+		rules []byte
+	}{{"cnv_loss_2020", l.Rules}, {"cnv_gain_2020", g.Rules}} {
+		defs := cnvrubric.Parse(item.rules)
+		selection := selected(defs, "4A", 45, "same")
+		selection.CaseIDs = []string{"same", "same"}
+		result := cnvrubric.Evaluate(item.id, defs, []cnvrubric.Selection{selection}, true)
+		if result.Status != "conflicting" || result.TotalScoreHundredths != 0 {
+			t.Fatal("duplicate case contributed points", item.id, result)
+		}
+	}
+}
 func TestIndependentGeneCountThresholds(t *testing.T) {
 	for _, c := range []struct {
 		n    int

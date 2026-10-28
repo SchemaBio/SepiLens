@@ -21,6 +21,7 @@ func (sv *SourceVerifier) VerifySource(src *Source) {
 	if src == nil {
 		return
 	}
+	preservedStatus := src.ValidationStatus
 
 	src.PMID = strings.TrimSpace(src.PMID)
 	src.DOI = strings.TrimSpace(src.DOI)
@@ -55,6 +56,10 @@ func (sv *SourceVerifier) VerifySource(src *Source) {
 		}
 	}
 	src.ValidationStatus = ValidationUnverified
+	if preservedStatus == ValidationConflict || preservedStatus == ValidationRejected {
+		src.ValidationStatus = preservedStatus
+		return
+	}
 	if src.IdentifierValid && src.RecordExists && src.ObjectMatched && src.MaterialVerified {
 		src.ValidationStatus = ValidationVerified
 	}
@@ -98,26 +103,5 @@ func (sv *SourceVerifier) EnforceEvidenceIntegrity(items []EvidenceItem, sources
 
 // DetectDuplicateCases inspects case counts across sources citing the same publication or registry ID
 func (sv *SourceVerifier) DetectDuplicateCases(sources []Source) int {
-	seenIdentifiers := make(map[string]bool)
-	totalCases := 0
-
-	for _, s := range sources {
-		key := s.PMID
-		if key == "" {
-			key = s.DOI
-		}
-		if key == "" {
-			key = s.URL
-		}
-
-		if key != "" && seenIdentifiers[key] {
-			// Duplicate paper citation: do not count duplicate case numbers
-			continue
-		}
-		if key != "" {
-			seenIdentifiers[key] = true
-		}
-		totalCases += s.CaseCount
-	}
-	return totalCases
+	return UniqueSourceCaseCount(sources)
 }

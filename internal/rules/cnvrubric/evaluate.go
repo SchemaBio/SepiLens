@@ -99,10 +99,12 @@ func Evaluate(id string, defs []Definition, selections []Selection, complete boo
 			continue
 		}
 		duplicate := false
+		within := map[string]bool{}
 		for _, c := range s.CaseIDs {
-			if c == "" || cases[c] {
+			if c == "" || cases[c] || within[c] {
 				duplicate = true
 			}
+			within[c] = true
 		}
 		if duplicate {
 			r.Status = "conflicting"
