@@ -54,7 +54,7 @@ func testSequenceAIReportsUnavailableLiteratureWithoutLocalFallback(t *testing.T
 				if engineID == "svc_v4" {
 					code, strength = "PFD", ""
 				}
-				_ = json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"message": map[string]any{"content": svcTestContext(strings.ReplaceAll(strings.ReplaceAll(`{"clinical_summary":"Synthetic clinical context organized; inheritance unknown.","criteria":[{"code":"ENGINE_CODE","status":"insufficient_data","strength":"ENGINE_STRENGTH","score_hundredths":null,"points":null,"source_ids":[],"facts_confirmed":[],"change":"confirmed","override_reason":"coverage unavailable"}],"classification":"VUS"}`, "ENGINE_CODE", code), "ENGINE_STRENGTH", strength), engineID == "svc_v4")}, "finish_reason": "stop"}}})
+				_ = json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"message": map[string]any{"content": withSyntheticBindings(svcTestContext(strings.ReplaceAll(strings.ReplaceAll(`{"clinical_summary":"Synthetic clinical context organized; inheritance unknown.","criteria":[{"code":"ENGINE_CODE","status":"insufficient_data","strength":"ENGINE_STRENGTH","score_hundredths":null,"points":null,"source_ids":[],"facts_confirmed":[],"change":"confirmed","override_reason":"coverage unavailable"}],"classification":"VUS"}`, "ENGINE_CODE", code), "ENGINE_STRENGTH", strength), engineID == "svc_v4"), chain)}, "finish_reason": "stop"}}})
 			}))
 			defer model.Close()
 			_, err := s.profiles.Save(context.Background(), "T", "mock", responses.Config{BaseURL: model.URL, APIKey: "synthetic", Model: "synthetic", Protocol: llm.ProtocolOpenAIChat})

@@ -95,6 +95,7 @@ func modelFactPack(r assessment.Request, base assessment.Result, sources []evide
 		if !supported {
 			continue
 		}
+		established = append(established, map[string]any{"field": "criterion." + criterion.Code, "code": criterion.Code, "value": true, "status": "supported", "source_ids": criterion.SourceIDs, "source_versions": versions, "path": "/rule_engine_result/criteria/" + criterion.Code})
 		names := []string{}
 		for name, value := range criterion.Facts {
 			if value {

@@ -14,6 +14,7 @@ import (
 	"github.com/pzweuj/sepilens/internal/assessment"
 	"github.com/pzweuj/sepilens/internal/engine"
 	"github.com/pzweuj/sepilens/internal/evidence"
+	"github.com/pzweuj/sepilens/internal/llm"
 	"github.com/pzweuj/sepilens/internal/llm/responses"
 	"github.com/pzweuj/sepilens/internal/retrieval"
 	"github.com/pzweuj/sepilens/internal/rules/acmg2015"
@@ -44,20 +45,22 @@ type modelProposal struct {
 	Classification  string              `json:"classification"`
 }
 type modelChange struct {
-	Code      string   `json:"code"`
-	Status    string   `json:"status"`
-	Strength  string   `json:"strength"`
-	Score     *int64   `json:"score_hundredths"`
-	Points    string   `json:"points"`
-	SourceIDs []string `json:"source_ids"`
-	Facts     []string `json:"facts_confirmed"`
-	Change    string   `json:"change"`
-	Reason    string   `json:"override_reason"`
+	Bindings  []modelEvidenceBinding `json:"evidence_bindings,omitempty"`
+	Code      string                 `json:"code"`
+	Status    string                 `json:"status"`
+	Strength  string                 `json:"strength"`
+	Score     *int64                 `json:"score_hundredths"`
+	Points    string                 `json:"points"`
+	SourceIDs []string               `json:"source_ids"`
+	Facts     []string               `json:"facts_confirmed"`
+	Change    string                 `json:"change"`
+	Reason    string                 `json:"override_reason"`
 }
 type assessmentChange struct {
 	assessment.Criterion
-	Change         string `json:"change"`
-	OverrideReason string `json:"override_reason"`
+	Bindings       []modelEvidenceBinding `json:"evidence_bindings,omitempty"`
+	Change         string                 `json:"change"`
+	OverrideReason string                 `json:"override_reason"`
 }
 type assessmentReconciliation struct {
 	Code     string `json:"code"`
@@ -115,7 +118,7 @@ func (s *Server) runAIV2(ctx context.Context, t workflow.Task, in evaluationInpu
 	}
 	result.PromptVersion = assessmentPromptVersion
 	if s.cfg.AIEvidenceChain {
-		result.PromptVersion = "four-engine-ai-2.9-evidence-facts"
+		result.PromptVersion = "four-engine-ai-3.0-claim-bindings"
 	}
 	result.ProfileVersion = in.ProfileVersion
 	checkpoint := *result
@@ -156,6 +159,9 @@ func (s *Server) runAIV2(ctx context.Context, t workflow.Task, in evaluationInpu
 	// record IDs, family IDs, case IDs and arbitrary rationale strings are omitted.
 	stage = "model_run"
 	schema := assessmentSchemaFor(in.Request)
+	if s.cfg.AIEvidenceChain {
+		addEvidenceBindingSchema(schema)
+	}
 	if assessment.InferClinicalContext(in.Request) {
 		schema["properties"].(map[string]any)["clinical_summary"] = map[string]any{"type": "string", "maxLength": 6000}
 		schema["required"] = append(schema["required"].([]any), "clinical_summary")
@@ -220,7 +226,15 @@ func (s *Server) runAIV2(ctx context.Context, t workflow.Task, in evaluationInpu
 		prefetched = opaqueCitations(prefetched, alias)
 		modelInput["retrieved_literature"] = map[string]any{"status": map[bool]string{true: "available", false: "unavailable"}[available], "sources": prefetched}
 	}
-	run, err = agent.RunContract(ctx, client, modelInput, func(ctx context.Context, name string) (any, error) {
+	runAgent := agent.RunContract
+	if s.cfg.AIEvidenceChain {
+		runAgent = func(ctx context.Context, p llm.Provider, input any, execute agent.ToolExecutor, system string, schema map[string]any) (agent.RunResult, error) {
+			return agent.RunContractWithReview(ctx, p, input, execute, evidenceBindingSystemPrompt+"\n"+system, schema, func(raw json.RawMessage) []string {
+				return evidenceBindingReview(raw, modelFacts, snap.Sources, reverse)
+			})
+		}
+	}
+	run, err = runAgent(ctx, client, modelInput, func(ctx context.Context, name string) (any, error) {
 		switch name {
 		case "get_annotations":
 			return modelInput, nil
@@ -303,9 +317,14 @@ func (s *Server) runAIV2(ctx context.Context, t workflow.Task, in evaluationInpu
 		if (in.Request.EngineID == "acmg_amp_2015" && (c.Score != nil || c.Points != "")) || (in.Request.CNV != nil && (c.Strength != "" || c.Points != "")) || (in.Request.EngineID == "svc_v4" && (c.Strength != "" || c.Score != nil)) {
 			return fail(agent.ErrOutputInvalid)
 		}
-		proposal.Criteria = append(proposal.Criteria, assessmentChange{Criterion: criterion, Change: c.Change, OverrideReason: c.Reason})
+		proposal.Criteria = append(proposal.Criteria, assessmentChange{Criterion: criterion, Change: c.Change, OverrideReason: c.Reason, Bindings: c.Bindings})
 	}
 	for n := range proposal.Criteria {
+		for i := range proposal.Criteria[n].Bindings {
+			if original, ok := reverse[proposal.Criteria[n].Bindings[i].SourceID]; ok {
+				proposal.Criteria[n].Bindings[i].SourceID = original
+			}
+		}
 		for i, id := range proposal.Criteria[n].SourceIDs {
 			if original, ok := reverse[id]; ok {
 				proposal.Criteria[n].SourceIDs[i] = original
@@ -320,9 +339,18 @@ func (s *Server) runAIV2(ctx context.Context, t workflow.Task, in evaluationInpu
 		}
 	}
 	var cnvDefaults []string
+	var bindingReports []map[string]any
+	if s.cfg.AIEvidenceChain {
+		var defaults []string
+		proposal, bindingReports, defaults = projectEvidenceBindings(proposal, modelFacts, snap.Sources)
+		cnvDefaults = append(cnvDefaults, defaults...)
+		run.ValidationErrors = append(run.ValidationErrors, defaults...)
+	}
 	if in.Request.CNV != nil {
-		proposal, cnvDefaults = defaultCNVProposal(in.Request.EngineID, proposal, snap.Sources)
-		run.ValidationErrors = append(run.ValidationErrors, cnvDefaults...)
+		var defaults []string
+		proposal, defaults = defaultCNVProposal(in.Request.EngineID, proposal, snap.Sources)
+		cnvDefaults = append(cnvDefaults, defaults...)
+		run.ValidationErrors = append(run.ValidationErrors, defaults...)
 		if err := validateCNVProposal(in.Request.EngineID, proposal, snap.Sources); err != nil {
 			return fail(err)
 		}
@@ -350,6 +378,7 @@ func (s *Server) runAIV2(ctx context.Context, t workflow.Task, in evaluationInpu
 	}
 	if s.cfg.AIEvidenceChain {
 		quality := evidenceQuality(base, proposal, snap.Sources)
+		quality["evidence_bindings"] = bindingReports
 		if modelFacts != nil {
 			quality["fact_pack_status"] = modelFacts["input_status"]
 			quality["fact_pack_version"] = modelFacts["version"]

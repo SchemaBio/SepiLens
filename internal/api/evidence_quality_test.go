@@ -37,7 +37,7 @@ func TestModelFactPackOnlyAddsIndependentlyEstablishedFacts(t *testing.T) {
 	base := assessment.Result{EngineID: r.EngineID, Criteria: []assessment.Criterion{{Code: "PP3", Status: "met", Facts: map[string]bool{"independent": true}, SourceIDs: []string{source.ID}}}}
 	pack := modelFactPack(r, base, []evidence.Source{source})
 	facts := pack["established_facts"].([]map[string]any)
-	if len(facts) != 1 || facts[0]["field"] != "criterion.PP3.independent" {
+	if len(facts) != 2 || facts[1]["field"] != "criterion.PP3.independent" {
 		t.Fatal("established fact missing")
 	}
 	encoded := opaqueCitations(pack, func(string) string { return "src_1" }).(map[string]any)

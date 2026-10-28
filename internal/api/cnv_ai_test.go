@@ -67,7 +67,7 @@ func testCNVAutomaticContextPrefetchAndBilling(t *testing.T, chain bool) {
 						t.Error("model ran before retrieval")
 					}
 					content := `{"clinical_summary":"Synthetic CNV context organized; evidence missing.","cnv_context":{"disease_id":"","inheritance":"unknown","rationale":"Missing evidence","source_ids":[]},"criteria":[{"code":"2A","status":"insufficient_data","strength":"","score_hundredths":null,"points":null,"source_ids":[],"facts_confirmed":[],"change":"confirmed","override_reason":"dosage evidence unavailable"}],"classification":"insufficient_data"}`
-					_ = json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"message": map[string]any{"content": content}, "finish_reason": "stop"}}})
+					_ = json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"message": map[string]any{"content": withSyntheticBindings(content, chain)}, "finish_reason": "stop"}}})
 				}))
 				defer model.Close()
 				if _, e := s.profiles.Save(context.Background(), "T", "mock", responses.Config{BaseURL: model.URL, APIKey: "synthetic", Model: "synthetic", Protocol: llm.ProtocolOpenAIChat}); e != nil {

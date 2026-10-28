@@ -28,6 +28,7 @@ type RunResult struct {
 	FinishReason     string          `json:"finish_reason,omitempty"`
 	ValidationErrors []string        `json:"output_validation_errors,omitempty"`
 	RejectedOutput   string          `json:"rejected_output,omitempty"`
+	RejectedOutputs  []string        `json:"rejected_outputs,omitempty"`
 	Repairs          int             `json:"output_repairs,omitempty"`
 	Raw              json.RawMessage `json:"assessment_json,omitempty"`
 	Assessment       Assessment      `json:"assessment"`
@@ -35,19 +36,28 @@ type RunResult struct {
 	InputTokens      int             `json:"input_tokens"`
 	OutputTokens     int             `json:"output_tokens"`
 	Rounds           int             `json:"rounds"`
+	ReviewIssues     []string        `json:"review_issues,omitempty"`
 }
 
 func Run(ctx context.Context, p llm.Provider, input any, execute ToolExecutor) (RunResult, error) {
-	return runContract(ctx, p, input, execute, SystemPrompt, OutputSchema(), true)
+	return runContract(ctx, p, input, execute, SystemPrompt, OutputSchema(), true, nil)
 }
 
 // RunContract shares protocol history, budgets and read-only tool restrictions
 // across engines while leaving their output vocabulary to the caller.
 func RunContract(ctx context.Context, p llm.Provider, input any, execute ToolExecutor, system string, schema map[string]any) (RunResult, error) {
-	return runContract(ctx, p, input, execute, system, schema, false)
+	return runContract(ctx, p, input, execute, system, schema, false, nil)
 }
 
-func runContract(ctx context.Context, p llm.Provider, input any, execute ToolExecutor, system string, schema map[string]any, legacy bool) (RunResult, error) {
+// Review uses the SAME repair counter, deadline and tool history as structural
+// validation and truncation recovery. After the shared budget is exhausted,
+// structurally valid output is returned with ReviewIssues for field-level
+// projection by the caller; it must not be treated as validated medical evidence.
+func RunContractWithReview(ctx context.Context, p llm.Provider, input any, execute ToolExecutor, system string, schema map[string]any, review func(json.RawMessage) []string) (RunResult, error) {
+	return runContract(ctx, p, input, execute, system, schema, false, review)
+}
+
+func runContract(ctx context.Context, p llm.Provider, input any, execute ToolExecutor, system string, schema map[string]any, legacy bool, review func(json.RawMessage) []string) (RunResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
 	var out RunResult
@@ -65,6 +75,9 @@ func runContract(ctx context.Context, p llm.Provider, input any, execute ToolExe
 		out.ValidationErrors = append(out.ValidationErrors, reason)
 		if len(response.Content) <= 256<<10 {
 			out.RejectedOutput = response.Content
+			if len(out.RejectedOutputs) < 2 {
+				out.RejectedOutputs = append(out.RejectedOutputs, response.Content)
+			}
 		}
 		if out.Repairs >= 1 || len(response.ToolCalls) > 0 || response.Content == "" {
 			return false
@@ -152,6 +165,27 @@ func runContract(ctx context.Context, p llm.Provider, input any, execute ToolExe
 			if legacy {
 				out.Assessment, err = Parse(response.Content)
 			} else {
+				if review != nil {
+					issues := review(json.RawMessage(response.Content))
+					if len(issues) > 24 {
+						issues = issues[:24]
+					}
+					if len(issues) > 0 {
+						out.ReviewIssues = issues
+						reason := "evidence binding review: "
+						for i, issue := range issues {
+							if i > 0 {
+								reason += "; "
+							}
+							reason += issue
+						}
+						if repair(response, reason) {
+							continue
+						}
+					} else {
+						out.ReviewIssues = nil
+					}
+				}
 				out.Raw = json.RawMessage(response.Content)
 			}
 			return out, err

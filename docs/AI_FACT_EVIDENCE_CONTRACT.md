@@ -26,6 +26,15 @@ Loss requests do not obtain TS prerequisites; Gain requests do not obtain HI
 prerequisites. Continuous copy-number estimates remain distinct from absolute
 integer copy numbers. Empty/invalid values do not become zero or negative evidence.
 
+Octopus sends this optional wire extension only when its server-side
+`AI_ASSISTANCE_EVIDENCE_CHAIN_ENABLED=true` flag is enabled (default false).
+Browsers cannot set the internal transport flag. Default payloads therefore remain
+compatible with older strict SepiLens decoders during rolling upgrades. Upgrade
+the receiver before enabling the transport; the managed Octopus child process
+maps this opt-in to `SEPILENS_AI_EVIDENCE_CHAIN_ENABLED=true`. A new standalone
+receiver can reconstruct facts from old clients even when no incoming pack exists.
+Previously stored request payloads are not rewritten when the flag changes.
+
 SepiLens reconstructs all fields from the normalized request rather than trusting
 the received pack. `input_status` in the rebuilt pack is `absent`, `matched`,
 `mismatched`, or `unsupported_version`. Unknown pack versions remain compatible
@@ -54,7 +63,45 @@ The reconstructed pack and source alias map are retained in the existing encrypt
 agent audit, under its existing task retention lifecycle. Ordinary logs and timing
 events do not contain fact values. Public quality summaries report the pack's
 schema/coherence state, not patient context. Prompt metadata uses
-`four-engine-ai-2.9-evidence-facts` when this path is enabled.
+`four-engine-ai-3.0-claim-bindings` when this path is enabled.
+
+## Claim-level bindings and shared correction
+
+With the feature enabled, every provider criterion includes `evidence_bindings`.
+Each entry has four required strings: `fact` (the matching `facts_confirmed` name,
+or empty for a whole-criterion assertion), `fact_id`, `source_id`, and `excerpt`.
+A binding references a supplied fact ID or an exact excerpt from a supplied
+source snippet, never both. Structured criterion facts cannot cross criterion or
+engine scope; imported request facts remain context only. Source IDs use the
+existing opaque aliases at the provider boundary.
+
+A located excerpt of at least 12 characters is traceable material pending human
+review. It is never automatically promoted to clinically verified support by
+substring matching. Independently established baseline facts may supply an
+explicit `rule_engine` binding without asking the model to repeat an already
+known fact. Binding reports identify model versus rule provenance, source title
+and dataset version, and fixed reasons for rejection or pending review.
+
+Invented fact IDs, wrong-scope facts, uncited/unknown/rejected sources and
+unlocatable excerpts trigger the same single correction counter already shared
+by schema validation and output truncation. The existing deadline and tool
+history are retained, and correction cannot call tools. Diagnostics contain only
+fixed reason codes and array offsets, at most 24 entries; no clinical excerpts,
+source identities or provider error text enter those diagnostics.
+
+If structurally valid output still contains invalid bindings after the shared
+budget, only affected positive clauses are projected to insufficient data with
+null scores/points and cleared asserted facts. Valid other clauses remain.
+The advisory classification and summary explicitly mark this degradation; the
+existing independent rule reconciliation remains authoritative. Original rejected
+outputs, raw final output and binding reports remain in the encrypted audit.
+`RunContractWithReview` returns unresolved `ReviewIssues` for this projection;
+callers must not treat its raw output as independently validated clinical data.
+
+The YiJian read-only panel exposes these source/excerpt associations, versions,
+defaulting and review reasons in four languages. It does not add save actions,
+overwrite manual edits, or make old records appear verified. It also rejects
+unsafe or credential-bearing citation link URLs.
 
 ## Tests and remaining work
 
@@ -62,8 +109,10 @@ The four-engine wire fixture, zero/missing/conflict tests, caller-forgery tests,
 engine isolation, existing AI/HPO routes, and feature-on/off synthetic HTTP
 contracts verify engineering behavior. The 120 parameterized quality replay cases
 are engineering cases, not independently reviewed clinical cases or evidence of
-clinical accuracy. Claim-specific excerpt/structured-record bindings, directed
-retrieval and reviewed quality comparisons remain tracked by the overall plan.
+clinical accuracy. Additional shared-budget tests and four-engine synthetic HTTP
+cases cover correction, repeated invalid output and selective projection.
+Directed retrieval and independently reviewed quality comparisons remain tracked
+by the overall plan.
 
 To update the synthetic wire fixture deliberately, run Octopus's
 `UPDATE_AI_FACT_CONTRACT=true go test ./internal/assistance -run TestFactPackWireContract`,
