@@ -122,7 +122,7 @@ func (s *Server) runAIV2(ctx context.Context, t workflow.Task, in evaluationInpu
 	}
 	result.PromptVersion = assessmentPromptVersion
 	if s.cfg.AIEvidenceChain {
-		result.PromptVersion = "four-engine-ai-3.1-directed-retrieval"
+		result.PromptVersion = "four-engine-ai-3.2-structured-inputs"
 	}
 	result.ProfileVersion = in.ProfileVersion
 	checkpoint := *result
@@ -412,6 +412,10 @@ func (s *Server) runAIV2(ctx context.Context, t workflow.Task, in evaluationInpu
 		if modelFacts != nil {
 			quality["fact_pack_status"] = modelFacts["input_status"]
 			quality["fact_pack_version"] = modelFacts["version"]
+			if inputs, ok := modelFacts["structured_inputs"].(map[string]any); ok {
+				quality["structured_inputs_version"] = inputs["version"]
+				quality["structured_inputs_omitted"] = inputs["omitted_count"]
+			}
 		}
 		result.AgentProposal.(map[string]any)["evidence_quality"] = quality
 	}

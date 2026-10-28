@@ -108,5 +108,12 @@ func modelFactPack(r assessment.Request, base assessment.Result, sources []evide
 		}
 	}
 	result["established_facts"] = established
+	// Use JSON-shaped containers so the existing recursive citation aliaser also
+	// covers IDs inside the new typed input/provenance view.
+	structuredRaw, _ := json.Marshal(assessment.BuildStructuredInputFacts(r, sources))
+	var structured map[string]any
+	_ = json.Unmarshal(structuredRaw, &structured)
+	result["structured_inputs"] = structured
+	result["structured_input_policy"] = map[string]any{"source_confirmation_is_provenance_only": true, "applicability_requires_rule_engine": true, "omitted_fields_are_unknown": true}
 	return result
 }

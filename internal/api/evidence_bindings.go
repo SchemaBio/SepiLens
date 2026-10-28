@@ -37,6 +37,7 @@ type bindingFact struct {
 	Status    string   `json:"status"`
 	Path      string   `json:"path"`
 	SourceIDs []string `json:"source_ids"`
+	Origin    string   `json:"origin"`
 }
 
 const evidenceBindingSystemPrompt = `For every met criterion bind each facts_confirmed entry to evidence_bindings using the exact same fact name. Each binding has fact, fact_id, source_id and excerpt strings. Use only fact_id values in the supplied fact_pack, or copy an exact nontrivial excerpt (at least 12 characters) from a supplied source snippet and cite that source's opaque ID. A binding uses either fact_id or excerpt, not both. Imported reported facts are context only and cannot establish clinical prerequisites. Established criterion facts are scoped to their exact engine, criterion and fact; never reuse another criterion's fact. For criteria with no named facts use an empty fact string and bind the criterion itself. Do not fabricate missing source content. Source existence, a gene mention, or locating a quote does not independently verify clinical applicability. If support is missing return insufficient_data with null score/points and an empty facts_confirmed list. An empty evidence_bindings list is permitted for unassessed/unmet clauses. Preserve valid supported clauses when correcting other clauses. Cite only supplied source IDs, and never invent case counts or verified family facts.`
@@ -51,6 +52,9 @@ func evidenceBindingCatalog(pack map[string]any) map[string]bindingFact {
 	var wire struct {
 		Facts       []bindingFact `json:"facts"`
 		Established []bindingFact `json:"established_facts"`
+		Structured  struct {
+			Facts []bindingFact `json:"facts"`
+		} `json:"structured_inputs"`
 	}
 	raw, _ := json.Marshal(pack)
 	_ = json.Unmarshal(raw, &wire)
@@ -59,6 +63,9 @@ func evidenceBindingCatalog(pack map[string]any) map[string]bindingFact {
 		out[fact.Field] = fact
 	}
 	for _, fact := range wire.Established {
+		out[fact.Field] = fact
+	}
+	for _, fact := range wire.Structured.Facts {
 		out[fact.Field] = fact
 	}
 	return out
@@ -139,6 +146,16 @@ func checkEvidenceBindings(c assessmentChange, catalog map[string]bindingFact, s
 				}
 				binding.SourceID = sourceID
 				checked = append(checked, checkedEvidenceBinding{modelEvidenceBinding: binding, Path: fact.Path, Origin: "model", Status: "supported", Reason: "independent_structured_fact"})
+			} else if fact.Origin == "structured_input" {
+				if fact.Status != "reported" || fact.Value == nil {
+					addInvalid(binding, "referenced_fact_unavailable")
+					continue
+				}
+				if binding.SourceID != "" && (!bindingContains(fact.SourceIDs, binding.SourceID) || !bindingContains(c.SourceIDs, binding.SourceID) || blocked[binding.SourceID]) {
+					addInvalid(binding, "request_fact_cannot_claim_source")
+					continue
+				}
+				checked = append(checked, checkedEvidenceBinding{modelEvidenceBinding: binding, Path: fact.Path, Origin: "model", Status: "context_only", Reason: "structured_input_requires_rule_applicability"})
 			} else {
 				if binding.SourceID != "" {
 					addInvalid(binding, "request_fact_cannot_claim_source")

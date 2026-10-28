@@ -1,8 +1,10 @@
 package api
 
 import (
+	"encoding/json"
 	"github.com/pzweuj/sepilens/internal/assessment"
 	"github.com/pzweuj/sepilens/internal/evidence"
+	"strings"
 	"testing"
 )
 
@@ -52,5 +54,17 @@ func TestModelFactPackOnlyAddsIndependentlyEstablishedFacts(t *testing.T) {
 	source.ObjectMatched = true
 	if len(modelFactPack(r, base, []evidence.Source{source})["established_facts"].([]map[string]any)) != 0 {
 		t.Fatal("ACMG fact crossed engine boundary")
+	}
+}
+
+func TestStructuredInputProvenanceUsesOpaqueAliasesAtEveryDepth(t *testing.T) {
+	id := "PRIVATE_PATIENT_RECORD_ID"
+	r := assessment.Request{EngineID: "acmg_amp_2015", Package: assessment.Package{Mechanism: &assessment.Mechanism{LOFEstablished: true, SourceIDs: []string{id}}}}
+	source := evidence.Source{ID: id, DatasetVersion: "fixed-v1"}
+	pack := modelFactPack(r, assessment.Result{}, []evidence.Source{source})
+	encoded := opaqueCitations(pack, func(string) string { return "src_opaque" })
+	raw, _ := json.Marshal(encoded)
+	if strings.Contains(string(raw), id) || !strings.Contains(string(raw), `"source_ids":["src_opaque"]`) || !strings.Contains(string(raw), `"id":"src_opaque"`) {
+		t.Fatal("raw source identity escaped through structured provenance")
 	}
 }

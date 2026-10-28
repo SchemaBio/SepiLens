@@ -63,7 +63,7 @@ The reconstructed pack and source alias map are retained in the existing encrypt
 agent audit, under its existing task retention lifecycle. Ordinary logs and timing
 events do not contain fact values. Public quality summaries report the pack's
 schema/coherence state, not patient context. Prompt metadata uses
-`four-engine-ai-3.1-directed-retrieval` when this path is enabled.
+`four-engine-ai-3.2-structured-inputs` when this path is enabled.
 
 ## Claim-level bindings and shared correction
 
@@ -127,6 +127,35 @@ groups do not establish independent cases. Explicit duplicate case IDs in a CNV
 selection are rejected, and source case-count metadata uses conservative document
 grouping rather than summing duplicate copies. Private case IDs are not included
 in the model retrieval view. The default-off path retains legacy retrieval.
+
+## Original structured input fields
+
+`fact_pack.structured_inputs` is a receiver-built optional `structured-inputs-v1`
+view of existing normalized package fields. It includes ACMG mechanism prerequisites
+and GenCC assertions, direction-specific CNV dosage records, counts/functional
+elements/coverage, and SVC population, impact, case-control and family-method inputs.
+CNV complete overlap reuses the existing annotator rather than deriving evidence
+from gene names. No opposite-direction HI/TS fields enter the input view.
+
+Every field has its original JSON path, source IDs/versions, reported/unknown/
+conflicting state and a separate provenance confirmation. `source_validated`
+requires versioned, existing, object-matched, material-verified sources; clinical
+method prerequisites additionally require the existing clinical-material gate.
+It does not establish rule applicability, a formal disease-validity grade, or a
+clinical confirmation. Paper text never fills these method fields. Only existing
+deterministic criterion facts can establish supported clause bindings. A binding
+to an original input field remains `context_only` until that rule applicability is
+independently established. SVC remains formally disabled.
+
+Explicit pointer zero/false values are retained. Non-pointer decoder defaults
+that cannot distinguish omitted false/zero from an original recorded value remain
+unknown in this view. Patient/family identifiers and informative-variant IDs are
+not repeated. The view is capped at 256 fields with at most 32 omitted field names
+and an exact omitted count; omitted fields stay unknown. High-impact validity,
+impact and case-control inputs precede repetitive case details. The complete
+normalized request remains in the existing protected audit, under its existing
+retention policy. Public quality metadata exposes only the view version and omitted
+count. The UI explains both context-only bindings and omissions in four languages.
 
 ## Tests and remaining work
 

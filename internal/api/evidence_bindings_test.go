@@ -47,6 +47,22 @@ func TestExcerptTraceabilityNeverVerifiesClinicalEntailment(t *testing.T) {
 	}
 }
 
+func TestStructuredMethodInputsRemainContextUntilRulesEstablishApplicability(t *testing.T) {
+	c, _, sources, _ := bindingFixture()
+	c.Bindings = []modelEvidenceBinding{{Fact: "computational", FactID: "input.mechanism.lof_established", SourceID: sources[0].ID}}
+	r := assessment.Request{EngineID: "acmg_amp_2015", Package: assessment.Package{Mechanism: &assessment.Mechanism{LOFEstablished: true, SourceIDs: []string{sources[0].ID}}}}
+	catalog := evidenceBindingCatalog(modelFactPack(r, assessment.Result{EngineID: r.EngineID}, sources))
+	checked, issues := checkEvidenceBindings(c, catalog, sources)
+	if len(checked) == 0 || checked[0].Status != "context_only" || checked[0].Reason != "structured_input_requires_rule_applicability" || !hasBindingIssue(issues, "missing_independent_or_excerpt_binding") {
+		t.Fatal("source-backed method input bypassed rules")
+	}
+	c.Bindings[0].SourceID = "unrelated-source"
+	_, issues = checkEvidenceBindings(c, catalog, sources)
+	if !hasBindingIssue(issues, "request_fact_cannot_claim_source") {
+		t.Fatal("structured field acquired unrelated source")
+	}
+}
+
 func TestBindingsRejectWrongScopeInventedExcerptsAndUnavailableFacts(t *testing.T) {
 	for _, scenario := range []string{"unknown_fact_id", "fact_scope_mismatch", "unknown_source", "source_not_cited", "excerpt_not_located", "referenced_fact_unavailable", "request_fact_cannot_claim_source", "source_conflicting_or_rejected", "ambiguous_binding"} {
 		t.Run(scenario, func(t *testing.T) {
