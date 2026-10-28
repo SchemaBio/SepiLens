@@ -20,6 +20,27 @@ func clearSepilensEnv() {
 	}
 }
 
+func TestEvidenceChainIsExplicitOptIn(t *testing.T) {
+	t.Setenv("SEPILENS_AUTH_MODE", "disabled")
+	t.Setenv("SEPILENS_API_KEYS", "")
+	t.Setenv("SEPILENS_AI_EVIDENCE_CHAIN_ENABLED", "")
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.AIEvidenceChain {
+		t.Fatal("evidence chain unexpectedly enabled")
+	}
+	t.Setenv("SEPILENS_AI_EVIDENCE_CHAIN_ENABLED", "true")
+	cfg, err = config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.AIEvidenceChain {
+		t.Fatal("explicit enable ignored")
+	}
+}
+
 func TestConfig_Load(t *testing.T) {
 	clearSepilensEnv()
 

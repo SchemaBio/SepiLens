@@ -67,6 +67,9 @@ func ValidCode(id, code string) bool {
 	if id == "svc_v4" {
 		return contains([]string{"POP", "CLN", "LOC", "NUL", "CDS", "PFD"}, code)
 	}
+	if id != "cnv_loss_2020" && id != "cnv_gain_2020" {
+		return false
+	}
 	rules := cnvloss2020.Rules
 	if id == "cnv_gain_2020" {
 		rules = cnvgain2020.Rules

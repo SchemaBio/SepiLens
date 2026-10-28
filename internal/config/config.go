@@ -15,6 +15,7 @@ var (
 )
 
 type Config struct {
+	AIEvidenceChain       bool
 	RetrievalAllowFakeIP  bool
 	HPOKnowledgeDir       string
 	BillSVCAI             bool
@@ -157,6 +158,7 @@ func Load() (Config, error) {
 		AICandidateEngines:    candidates,
 		BillSVCAI:             parseBool(getEnv("SEPILENS_SVC_BILLING_ENABLED", "false"), false),
 		BillCNVAI:             parseBool(getEnv("SEPILENS_CNV_BILLING_ENABLED", "false"), false),
+		AIEvidenceChain:       parseBool(getEnv("SEPILENS_AI_EVIDENCE_CHAIN_ENABLED", "false"), false),
 		BillACMGAI:            parseBool(getEnv("SEPILENS_ACMG_BILLING_ENABLED", "false"), false),
 		HPOKnowledgeDir:       getEnv("SEPILENS_HPO_KNOWLEDGE_DIR", "./knowledge/hpo"),
 		AllowUnapprovedAI:     !parseBool(getEnv("SEPILENS_REQUIRE_RULE_APPROVAL", "true"), true),

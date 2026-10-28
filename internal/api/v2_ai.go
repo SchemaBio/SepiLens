@@ -84,12 +84,17 @@ func (s *Server) runAIV2(ctx context.Context, t workflow.Task, in evaluationInpu
 	budget := &retrieval.Budget{Max: max}
 	ctx = retrieval.WithBudget(ctx, budget)
 	var run agent.RunResult
+	var modelFacts map[string]any
 	aliases := map[string]string{}
 	reverse := map[string]string{}
 	stage := "provider_profile"
 	fail := func(err error) error {
 		result.Usage = ResourceUsage{InputTokens: run.InputTokens, OutputTokens: run.OutputTokens, WebSearches: budget.Count(), DurationMS: time.Since(started).Milliseconds()}
-		snap.Agent, _ = json.Marshal(map[string]any{"run": run, "proposal": result.AgentProposal, "stage": stage, "citation_aliases": reverse})
+		audit := map[string]any{"run": run, "proposal": result.AgentProposal, "stage": stage, "citation_aliases": reverse}
+		if modelFacts != nil {
+			audit["fact_pack"] = modelFacts
+		}
+		snap.Agent, _ = json.Marshal(audit)
 		snap.Provenance.RetrievalMode = "ai_assisted"
 		snap.Provenance.RequestsCount = budget.Count()
 		snap.Provenance.TokensUsed = run.InputTokens + run.OutputTokens
@@ -109,6 +114,9 @@ func (s *Server) runAIV2(ctx context.Context, t workflow.Task, in evaluationInpu
 		return &workflow.PartialFailure{Code: code}
 	}
 	result.PromptVersion = assessmentPromptVersion
+	if s.cfg.AIEvidenceChain {
+		result.PromptVersion = "four-engine-ai-2.9-evidence-facts"
+	}
 	result.ProfileVersion = in.ProfileVersion
 	checkpoint := *result
 	checkpoint.DeliveryStatus = "pending"
@@ -153,6 +161,11 @@ func (s *Server) runAIV2(ctx context.Context, t workflow.Task, in evaluationInpu
 		schema["required"] = append(schema["required"].([]any), "clinical_summary")
 	}
 	modelInput := modelAssessmentInput(in.Request, base, in.Sources)
+	if s.cfg.AIEvidenceChain {
+		modelFacts = modelFactPack(in.Request, base, in.Sources)
+		modelInput["fact_pack"] = modelFacts
+		modelInput["evidence_policy"] = map[string]any{"version": "evidence-quality-v1", "facts_confirmed_is_proposal": true, "require_object_and_material_match": true, "unknown_is_not_negative": true, "reported_facts_are_context_only": true, "prefer_established_facts": true, "retain_conflicts": true, "source_existence_is_not_clause_support": true}
+	}
 	alias := func(id string) string {
 		if v, ok := aliases[id]; ok {
 			return v
@@ -335,6 +348,14 @@ func (s *Server) runAIV2(ctx context.Context, t workflow.Task, in evaluationInpu
 		result.AgentProposal.(map[string]any)["retrieval_status"] = "unavailable"
 		result.SettlementEligible = false
 	}
+	if s.cfg.AIEvidenceChain {
+		quality := evidenceQuality(base, proposal, snap.Sources)
+		if modelFacts != nil {
+			quality["fact_pack_status"] = modelFacts["input_status"]
+			quality["fact_pack_version"] = modelFacts["version"]
+		}
+		result.AgentProposal.(map[string]any)["evidence_quality"] = quality
+	}
 	if ignoredACMGScores {
 		result.AgentProposal.(map[string]any)["normalization_warnings"] = []string{"模型附带的 ACMG 数值分数已忽略；仅使用结构化证据代码、状态和强度，人工采纳后的分数由服务器重新计算。"}
 	}
@@ -386,7 +407,10 @@ func modelAssessmentInput(r assessment.Request, base assessment.Result, accepted
 	}
 	out := map[string]any{"engine_id": r.EngineID, "variant": r.Variant, "cnv": r.CNV, "disease_id": r.Context.DiseaseID, "inheritance": r.Context.Inheritance, "local_criteria": clauses, "sources": sources}
 	if assessment.InferClinicalContext(r) {
-		out["imported_context"] = r.Package.AIContext
+		imported := *r.Package.AIContext
+		// Do not trust a caller-supplied confirmation or provenance claim.
+		imported.FactPack = nil
+		out["imported_context"] = &imported
 	}
 	// These IDs describe the sample; they do not establish phenotype matching
 	// or satisfy PP4 without the separately verified phenotype package.

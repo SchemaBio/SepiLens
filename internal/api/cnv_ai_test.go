@@ -32,23 +32,34 @@ func (c cnvSyntheticRetriever) Retrieve(ctx context.Context, q retrieval.Query) 
 	return nil, nil
 }
 func TestCNVAutomaticContextPrefetchAndBilling(t *testing.T) {
+	for _, chain := range []bool{false, true} {
+		t.Run(map[bool]string{true: "evidence_chain_on", false: "evidence_chain_off"}[chain], func(t *testing.T) { testCNVAutomaticContextPrefetchAndBilling(t, chain) })
+	}
+}
+func testCNVAutomaticContextPrefetchAndBilling(t *testing.T, chain bool) {
 	for _, id := range []string{"cnv_gain_2020", "cnv_loss_2020"} {
 		for _, online := range []bool{true, false} {
 			t.Run(id+map[bool]string{true: "online", false: "unavailable"}[online], func(t *testing.T) {
 				s := newV2Server(t)
+				s.cfg.AIEvidenceChain = chain
 				s.approvals = map[engine.EngineID]engine.Approval{}
 				s.cfg.AICandidateEngines = map[string]bool{id: true}
 				s.cfg.BillCNVAI = true
 				var searches atomic.Int32
+				var modelCalls atomic.Int32
 				if online {
 					s.coordinator = retrieval.NewSearchCoordinator(retrieval.CoordinatorConfig{}, []retrieval.Retriever{cnvSyntheticRetriever{calls: &searches}})
 				} else {
 					s.coordinator = nil
 				}
 				model := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					modelCalls.Add(1)
 					var body map[string]any
 					_ = json.NewDecoder(r.Body).Decode(&body)
 					b, _ := json.Marshal(body)
+					if strings.Contains(string(b), "reported_is_not_verified") != chain {
+						t.Error("fact pack feature gate failed")
+					}
 					if !strings.Contains(string(b), "cnv_rubric") || !strings.Contains(string(b), "retrieved_literature") {
 						t.Error("CNV context or prefetch absent")
 					}
@@ -83,6 +94,13 @@ func TestCNVAutomaticContextPrefetchAndBilling(t *testing.T) {
 				j := waitV2(t, s, accepted.ID)
 				var result EvaluationResultPayload
 				_ = json.Unmarshal([]byte(j.ResultJSON), &result)
+				if modelCalls.Load() != 1 {
+					t.Fatal("evidence chain increased model calls")
+				}
+				_, hasQuality := result.AgentProposal.(map[string]any)["evidence_quality"]
+				if hasQuality != chain {
+					t.Fatal("quality gate failed")
+				}
 				if result.AgentProposal.(map[string]any)["ai_assessment"].(map[string]any)["cnv_context"] == nil {
 					t.Fatal("CNV inferred context lost in delivery")
 				}

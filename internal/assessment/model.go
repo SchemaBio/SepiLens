@@ -49,8 +49,26 @@ type Package struct {
 
 // Imported context is model input, never verified evidence for medical rules.
 type AIContext struct {
+	FactPack           *AIFactPack      `json:"fact_pack,omitempty"`
 	VariantAnnotations map[string]any   `json:"variant_annotations"`
 	Sample             *AISampleContext `json:"sample"`
+}
+
+// Imported facts are traceable context, never independently verified evidence.
+type AIFactPack struct {
+	Version               string           `json:"version"`
+	EngineID              string           `json:"engine_id,omitempty"`
+	Facts                 []AIImportedFact `json:"facts"`
+	ReportedIsNotVerified bool             `json:"reported_is_not_verified"`
+	InputStatus           string           `json:"input_status,omitempty"`
+}
+type AIImportedFact struct {
+	Field   string `json:"field"`
+	Value   any    `json:"value"`
+	Source  string `json:"source"`
+	Path    string `json:"path"`
+	Version string `json:"version"`
+	Status  string `json:"status"`
 }
 
 type AISampleContext struct {

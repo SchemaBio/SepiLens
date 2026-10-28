@@ -18,9 +18,15 @@ import (
 )
 
 func TestSequenceAIReportsUnavailableLiteratureWithoutLocalFallback(t *testing.T) {
+	for _, chain := range []bool{false, true} {
+		t.Run(map[bool]string{true: "evidence_chain_on", false: "evidence_chain_off"}[chain], func(t *testing.T) { testSequenceAIReportsUnavailableLiteratureWithoutLocalFallback(t, chain) })
+	}
+}
+func testSequenceAIReportsUnavailableLiteratureWithoutLocalFallback(t *testing.T, chain bool) {
 	for _, engineID := range []string{"acmg_amp_2015", "svc_v4"} {
 		t.Run(engineID, func(t *testing.T) {
 			s := newV2Server(t)
+			s.cfg.AIEvidenceChain = chain
 			s.approvals = map[engine.EngineID]engine.Approval{}
 			s.cfg.BillACMGAI = true
 			s.cfg.BillSVCAI = true
@@ -31,6 +37,9 @@ func TestSequenceAIReportsUnavailableLiteratureWithoutLocalFallback(t *testing.T
 				var body map[string]any
 				_ = json.NewDecoder(r.Body).Decode(&body)
 				encoded, _ := json.Marshal(body["messages"])
+				if strings.Contains(string(encoded), "reported_is_not_verified") != chain {
+					t.Error("fact pack feature gate failed")
+				}
 				if !strings.Contains(string(encoded), "synthetic clinical background") || !strings.Contains(string(encoded), "SIFT_pred") || !strings.Contains(string(encoded), "analysis_mode") || !strings.Contains(string(encoded), "trio") || !strings.Contains(string(encoded), "sampleGenotypes") || !strings.Contains(string(encoded), "father") {
 					t.Error("imported clinical context missing from model")
 				}
@@ -76,6 +85,10 @@ func TestSequenceAIReportsUnavailableLiteratureWithoutLocalFallback(t *testing.T
 			var result EvaluationResultPayload
 			_ = json.Unmarshal([]byte(j.ResultJSON), &result)
 			proposal, _ := result.AgentProposal.(map[string]any)
+			_, hasQuality := proposal["evidence_quality"]
+			if hasQuality != chain {
+				t.Fatal("quality gate failed")
+			}
 			if j.Status != jobs.StatusSucceeded || calls.Load() != 2 || proposal["ai_assessment"] == nil || proposal["retrieval_status"] != "unavailable" || result.SettlementEligible {
 				t.Fatal(j.Status, result)
 			}
