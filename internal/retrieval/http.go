@@ -30,6 +30,9 @@ func (b *Budget) Count() int { b.mu.Lock(); defer b.mu.Unlock(); return b.Used }
 func (b *Budget) Take(ctx context.Context) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if b.Used >= b.Max {
 		return ErrBudgetExceeded
 	}
@@ -134,6 +137,22 @@ func (r *OfficialRetriever) retrieveOnce(ctx context.Context, q Query) ([]eviden
 		return nil, nil
 	}
 	term := strings.TrimSpace(q.Gene + " " + q.HGVS)
+	if r.Database == "pubmed" {
+		switch q.Purpose {
+		case "functional_evidence":
+			term += " functional assay splicing"
+		case "gene_disease_validity":
+			term += " gene disease inheritance"
+		case "case_segregation":
+			term += " case segregation inheritance"
+		case "dosage_sensitivity":
+			if q.VariantType == "cnv_loss" {
+				term += " haploinsufficiency"
+			} else if q.VariantType == "cnv_gain" {
+				term += " triplosensitivity"
+			}
+		}
+	}
 	if r.Database == "pubmed" && strings.HasPrefix(q.VariantType, "cnv_") && q.Start > 0 && q.End >= q.Start {
 		event := "duplication"
 		if q.VariantType == "cnv_loss" {

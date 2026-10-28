@@ -63,7 +63,7 @@ The reconstructed pack and source alias map are retained in the existing encrypt
 agent audit, under its existing task retention lifecycle. Ordinary logs and timing
 events do not contain fact values. Public quality summaries report the pack's
 schema/coherence state, not patient context. Prompt metadata uses
-`four-engine-ai-3.0-claim-bindings` when this path is enabled.
+`four-engine-ai-3.1-directed-retrieval` when this path is enabled.
 
 ## Claim-level bindings and shared correction
 
@@ -103,6 +103,31 @@ defaulting and review reasons in four languages. It does not add save actions,
 overwrite manual edits, or make old records appear verified. It also rejects
 unsafe or credential-bearing citation link URLs.
 
+## Directed retrieval and source identity
+
+The opt-in path advances through at most three engine-scoped missing-evidence
+questions, prioritizing known conflicts. One supported clause does not suppress
+other unresolved clauses in the same question. Fully supported questions are
+skipped. Each tool invocation advances one unanswered question, then reads the
+request-local cache once the plan is exhausted. All HTTP requests still consume
+the existing shared budget and deadline; no extra repair or provider round is
+introduced. Fixed coordinates and assembly remain unchanged; gene-level questions
+may omit HGVS without asserting variant equivalence.
+
+Findings distinguish pending review, explicit conflict, no records for that query,
+and service unavailability. Unqueried questions remain visible. None of these
+states establishes negative clinical evidence. Partial records survive retrieval
+failure in the encrypted audit; budget exhaustion and cancellation remain fatal.
+
+PMID/DOI/ClinVar identities group records without merging trust flags or discarding
+distinct snippets. Conflicting records retain separate source IDs and opaque
+aliases. A verified, object-matched conflict holds structured support from the same
+document; an unverified search flag cannot poison trusted support. Publication
+groups do not establish independent cases. Explicit duplicate case IDs in a CNV
+selection are rejected, and source case-count metadata uses conservative document
+grouping rather than summing duplicate copies. Private case IDs are not included
+in the model retrieval view. The default-off path retains legacy retrieval.
+
 ## Tests and remaining work
 
 The four-engine wire fixture, zero/missing/conflict tests, caller-forgery tests,
@@ -111,8 +136,9 @@ contracts verify engineering behavior. The 120 parameterized quality replay case
 are engineering cases, not independently reviewed clinical cases or evidence of
 clinical accuracy. Additional shared-budget tests and four-engine synthetic HTTP
 cases cover correction, repeated invalid output and selective projection.
-Directed retrieval and independently reviewed quality comparisons remain tracked
-by the overall plan.
+Synthetic query routing, caching, cancellation, partial failure, source identity,
+conflict isolation and duplicate-case tests cover directed retrieval. Independently
+reviewed quality comparisons remain tracked by the overall plan.
 
 To update the synthetic wire fixture deliberately, run Octopus's
 `UPDATE_AI_FACT_CONTRACT=true go test ./internal/assistance -run TestFactPackWireContract`,

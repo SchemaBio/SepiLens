@@ -88,6 +88,7 @@ func (s *Server) runAIV2(ctx context.Context, t workflow.Task, in evaluationInpu
 	ctx = retrieval.WithBudget(ctx, budget)
 	var run agent.RunResult
 	var modelFacts map[string]any
+	var directed *directedRetrieval
 	aliases := map[string]string{}
 	reverse := map[string]string{}
 	stage := "provider_profile"
@@ -96,6 +97,9 @@ func (s *Server) runAIV2(ctx context.Context, t workflow.Task, in evaluationInpu
 		audit := map[string]any{"run": run, "proposal": result.AgentProposal, "stage": stage, "citation_aliases": reverse}
 		if modelFacts != nil {
 			audit["fact_pack"] = modelFacts
+		}
+		if directed != nil {
+			audit["retrieval_findings"] = directed.Findings
 		}
 		snap.Agent, _ = json.Marshal(audit)
 		snap.Provenance.RetrievalMode = "ai_assisted"
@@ -118,7 +122,7 @@ func (s *Server) runAIV2(ctx context.Context, t workflow.Task, in evaluationInpu
 	}
 	result.PromptVersion = assessmentPromptVersion
 	if s.cfg.AIEvidenceChain {
-		result.PromptVersion = "four-engine-ai-3.0-claim-bindings"
+		result.PromptVersion = "four-engine-ai-3.1-directed-retrieval"
 	}
 	result.ProfileVersion = in.ProfileVersion
 	checkpoint := *result
@@ -207,7 +211,20 @@ func (s *Server) runAIV2(ctx context.Context, t workflow.Task, in evaluationInpu
 	// SVC always retrieves before generating, rather than relying on an optional tool call.
 	var prefetched any
 	svcPrefetched := false
-	if (in.Request.EngineID == "svc_v4" || in.Request.CNV != nil) && assessment.InferClinicalContext(in.Request) {
+	if s.cfg.AIEvidenceChain {
+		directed = &directedRetrieval{Query: query, Needs: missingEvidencePlan(in.Request.EngineID, base), Sources: append([]evidence.Source(nil), snap.Sources...), Fetch: s.modelLiterature, Count: budget.Count, Publish: func(records []evidence.Source) {
+			snap.Sources = records
+			for _, source := range records {
+				alias(source.ID)
+			}
+		}}
+		if err := directed.Next(ctx); err != nil {
+			return fail(err)
+		}
+		retrievalUnavailable = directed.Unavailable()
+		modelInput["retrieved_literature"] = opaqueCitations(directed.View(), alias)
+		modelInput["retrieval_policy"] = map[string]any{"no_records_is_not_negative_evidence": true, "source_groups_are_not_case_counts": true, "next_tool_call_advances_question": true, "conflicting_records_require_review": true, "unqueried_questions_remain_unknown": true}
+	} else if (in.Request.EngineID == "svc_v4" || in.Request.CNV != nil) && assessment.InferClinicalContext(in.Request) {
 		svcPrefetched = true
 		broad := query
 		broad.HGVS = ""
@@ -247,6 +264,15 @@ func (s *Server) runAIV2(ctx context.Context, t workflow.Task, in evaluationInpu
 			}
 			return map[string]any{"status": "unavailable", "gene_disease_matching": "not_run"}, nil
 		case "search_literature":
+			if directed != nil {
+				if err := directed.Next(ctx); err != nil {
+					return nil, err
+				}
+				retrievalUnavailable = directed.Unavailable()
+				view := opaqueCitations(directed.View(), alias)
+				modelInput["retrieved_literature"] = view
+				return view, nil
+			}
 			if svcPrefetched {
 				return modelInput["retrieved_literature"], nil
 			}
@@ -379,6 +405,10 @@ func (s *Server) runAIV2(ctx context.Context, t workflow.Task, in evaluationInpu
 	if s.cfg.AIEvidenceChain {
 		quality := evidenceQuality(base, proposal, snap.Sources)
 		quality["evidence_bindings"] = bindingReports
+		if directed != nil {
+			quality["retrieval_findings"] = directed.Findings
+			quality["remaining_questions"] = len(directed.Needs) - directed.Cursor
+		}
 		if modelFacts != nil {
 			quality["fact_pack_status"] = modelFacts["input_status"]
 			quality["fact_pack_version"] = modelFacts["version"]
@@ -411,7 +441,13 @@ func (s *Server) modelLiterature(ctx context.Context, query retrieval.Query) ([]
 	_, found, err := s.coordinator.Coordinate(ctx, query)
 	if errors.Is(err, retrieval.ErrBudgetExceeded) || ctx.Err() != nil {
 		if ctx.Err() != nil {
+			if query.PreserveRecords {
+				return found, false, ctx.Err()
+			}
 			return nil, false, ctx.Err()
+		}
+		if query.PreserveRecords {
+			return found, false, err
 		}
 		return nil, false, err
 	}

@@ -80,6 +80,7 @@ func verifiedBindingSource(source evidence.Source) bool {
 // engine facts may mark a binding supported; no text-matching heuristic verifies
 // a clinical proposition or a disease/variant association.
 func checkEvidenceBindings(c assessmentChange, catalog map[string]bindingFact, sources []evidence.Source) ([]checkedEvidenceBinding, []string) {
+	blocked := evidence.ConflictingSourceGroupIDs(sources)
 	byID := map[string]evidence.Source{}
 	for _, source := range sources {
 		byID[source.ID] = source
@@ -132,7 +133,7 @@ func checkEvidenceBindings(c assessmentChange, catalog map[string]bindingFact, s
 					}
 				}
 				source, exists := byID[sourceID]
-				if fact.Status != "supported" || !bindingContains(fact.SourceIDs, sourceID) || !bindingContains(c.SourceIDs, sourceID) || !exists || !verifiedBindingSource(source) {
+				if fact.Status != "supported" || !bindingContains(fact.SourceIDs, sourceID) || !bindingContains(c.SourceIDs, sourceID) || !exists || !verifiedBindingSource(source) || blocked[sourceID] {
 					addInvalid(binding, "structured_support_unavailable")
 					continue
 				}
@@ -155,6 +156,8 @@ func checkEvidenceBindings(c assessmentChange, catalog map[string]bindingFact, s
 		switch {
 		case !exists:
 			addInvalid(binding, "unknown_source")
+		case blocked[binding.SourceID]:
+			addInvalid(binding, "source_group_conflicting")
 		case !bindingContains(c.SourceIDs, binding.SourceID):
 			addInvalid(binding, "source_not_cited")
 		case source.ValidationStatus == evidence.ValidationConflict || source.ValidationStatus == evidence.ValidationRejected:
@@ -193,7 +196,7 @@ func checkEvidenceBindings(c assessmentChange, catalog map[string]bindingFact, s
 			if exists && fact.Code == c.Code && fact.Status == "supported" {
 				for _, sourceID := range fact.SourceIDs {
 					source, present := byID[sourceID]
-					if present && verifiedBindingSource(source) && bindingContains(c.SourceIDs, sourceID) {
+					if present && verifiedBindingSource(source) && !blocked[sourceID] && bindingContains(c.SourceIDs, sourceID) {
 						already := false
 						for _, item := range checked {
 							already = already || item.Fact == claim && item.Status == "supported"

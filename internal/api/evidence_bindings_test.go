@@ -77,7 +77,7 @@ func TestBindingsRejectWrongScopeInventedExcerptsAndUnavailableFacts(t *testing.
 				binding.FactID = "annotation.gnomadAF"
 				binding.Excerpt = ""
 			case "source_conflicting_or_rejected":
-				sources[0].ValidationStatus = evidence.ValidationConflict
+				sources[0].ValidationStatus = evidence.ValidationRejected
 			case "ambiguous_binding":
 				binding.FactID = "criterion.PP3.computational"
 			}
@@ -97,6 +97,23 @@ func TestReportedGenotypesCannotProveClinicalPrerequisites(t *testing.T) {
 	checked, issues := checkEvidenceBindings(c, catalog, sources)
 	if checked[0].Status != "context_only" || !hasBindingIssue(issues, "missing_independent_or_excerpt_binding") {
 		t.Fatal("imported genotype proved medical fact")
+	}
+}
+
+func TestIndependentlyMatchedConflictHoldsPriorPaperWithoutTrustPoisoning(t *testing.T) {
+	c, catalog, sources, _ := bindingFixture()
+	sources[0].PMID = "123"
+	conflict := sources[0]
+	conflict.ID = "counter-record"
+	conflict.ValidationStatus = evidence.ValidationConflict
+	_, issues := checkEvidenceBindings(c, catalog, append(sources, conflict))
+	if len(issues) == 0 {
+		t.Fatal("independent conflict ignored")
+	}
+	conflict.MaterialVerified = false
+	checked, issues := checkEvidenceBindings(c, catalog, append(sources, conflict))
+	if len(issues) != 0 || len(checked) != 1 || checked[0].Status != "supported" {
+		t.Fatal("unverified search result poisoned baseline")
 	}
 }
 

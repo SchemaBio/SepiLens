@@ -24,19 +24,22 @@ var (
 )
 
 type Query struct {
-	IDs         []string `json:"-"`
-	Assembly    string   `json:"assembly"`
-	Chrom       string   `json:"chrom"`
-	Pos         int64    `json:"pos,omitempty"`
-	Start       int64    `json:"start,omitempty"`
-	End         int64    `json:"end,omitempty"`
-	Ref         string   `json:"ref,omitempty"`
-	Alt         string   `json:"alt,omitempty"`
-	Gene        string   `json:"gene,omitempty"`
-	DiseaseID   string   `json:"disease_id,omitempty"`
-	HGVS        string   `json:"hgvs,omitempty"`
-	VariantType string   `json:"variant_type"` // "snv", "cnv_loss", "cnv_gain"
-	Mode        Mode     `json:"mode"`
+	Purpose         string   `json:"purpose,omitempty"`
+	Databases       []string `json:"databases,omitempty"`
+	PreserveRecords bool     `json:"-"`
+	IDs             []string `json:"-"`
+	Assembly        string   `json:"assembly"`
+	Chrom           string   `json:"chrom"`
+	Pos             int64    `json:"pos,omitempty"`
+	Start           int64    `json:"start,omitempty"`
+	End             int64    `json:"end,omitempty"`
+	Ref             string   `json:"ref,omitempty"`
+	Alt             string   `json:"alt,omitempty"`
+	Gene            string   `json:"gene,omitempty"`
+	DiseaseID       string   `json:"disease_id,omitempty"`
+	HGVS            string   `json:"hgvs,omitempty"`
+	VariantType     string   `json:"variant_type"` // "snv", "cnv_loss", "cnv_gain"
+	Mode            Mode     `json:"mode"`
 }
 
 type Retriever interface {
@@ -110,6 +113,15 @@ func (sc *SearchCoordinator) Coordinate(ctx context.Context, q Query) (evidence.
 	var wg sync.WaitGroup
 
 	for _, r := range sc.retrievers {
+		if len(q.Databases) > 0 && (r.Name() == "pubmed" || r.Name() == "clinvar" || r.Name() == "clingen_dosage") {
+			selected := false
+			for _, name := range q.Databases {
+				selected = selected || name == r.Name()
+			}
+			if !selected {
+				continue
+			}
+		}
 		if q.Mode == ModeOff && r.IsOnline() {
 			// Mode "off" strictly skips all online network retrievers
 			continue
@@ -141,13 +153,26 @@ func (sc *SearchCoordinator) Coordinate(ctx context.Context, q Query) (evidence.
 
 	wg.Wait()
 	requestCount = budget.Count() - initialCount
-	sort.SliceStable(allSources, func(i, j int) bool { return allSources[i].ID < allSources[j].ID })
+	sort.SliceStable(allSources, func(i, j int) bool {
+		if allSources[i].ID != allSources[j].ID {
+			return allSources[i].ID < allSources[j].ID
+		}
+		return evidence.SourceRecordFingerprint(allSources[i]) < evidence.SourceRecordFingerprint(allSources[j])
+	})
 
 	// Deduplication and sanitation
 	dedupMap := make(map[string]bool)
 	var finalSources []evidence.Source
 
 	for _, src := range allSources {
+		if q.PreserveRecords {
+			if src.Snippet != "" {
+				src.Snippet = sc.sanitizer.SanitizeText(src.Snippet)
+			}
+			sc.verifier.VerifySource(&src)
+			finalSources = evidence.MergeSourceRecords(finalSources, []evidence.Source{src})
+			continue
+		}
 		key := src.PMID
 		if key == "" {
 			key = src.ClinVarID

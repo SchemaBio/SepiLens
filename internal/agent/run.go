@@ -67,6 +67,9 @@ func runContract(ctx context.Context, p llm.Provider, input any, execute ToolExe
 	}
 	args := map[string]any{"type": "object", "properties": map[string]any{}, "required": []any{}, "additionalProperties": false}
 	tools := []llm.Tool{{Name: "get_annotations", Description: "Read the fixed annotation snapshot", Parameters: args}, {Name: "get_phenotype", Description: "Read the fixed phenotype score", Parameters: args}, {Name: "search_literature", Description: "Search verified official literature for the fixed evaluation object", Parameters: args}}
+	if review != nil {
+		tools[2].Description = "Advance the next unqueried evidence question for the fixed object; after completion read cached results. Source existence or a located excerpt does not verify clinical applicability."
+	}
 	maxTokens := 8192
 	req := llm.GenerateRequest{Prompt: string(b), System: system, Tools: tools, JSONSchema: schema, MaxTokens: &maxTokens}
 	seen := map[string]bool{}
