@@ -25,6 +25,7 @@ coverage.out
 test.log
 tmp/
 __pycache__/
+.quality-eval/
 *.pyc
 
 # Environment files
