@@ -18,6 +18,16 @@
 
 ## 网络与镜像
 
+### 手动发布到 GHCR
+
+将 `.github/workflows/publish-image.yml` 合入默认分支后，在 GitHub 仓库的 **Actions → Publish Docker image → Run workflow** 中选择要构建的分支，填写 `tag`（例如 `v0.3.0`），按需勾选 `push_latest`（默认关闭）。工作流仅手动触发，构建所选分支的 Dockerfile，推送 `linux/amd64`、`linux/arm64` 双架构镜像到 `ghcr.io/schemabio/sepilens:<tag>`；勾选后同一镜像同时发布为 `ghcr.io/schemabio/sepilens:latest`。直接填写 `tag=latest` 也会更新 latest。tag 同时作为 Dockerfile 的 `VERSION` 构建参数。
+
+发布使用 GitHub 自动提供的 `GITHUB_TOKEN` 和工作流内声明的 `packages: write`，无需额外配置 PAT。仓库／组织需允许运行这些 Actions；若 GHCR 中已存在同名包，需在包设置的 **Manage Actions access** 中授予该仓库写入权限。包的公开／私有可见性在 GHCR 包设置中管理。
+
+拉取指定版本示例：`docker pull ghcr.io/schemabio/sepilens:v0.3.0`。
+
+### 运行配置
+
 探针 /healthz、/readyz 不要求 API Key，其他路径需要认证。HTTPS 反向代理由部署者提供。模型默认仅公网 HTTPS，显式配置才允许私网模型；官方检索保留默认 SSRF 防护。日志不含患者内容、Key 或完整外部错误。
 
 Dockerfile 和 scripts/images.ps1 不再复制医学参考资源；镜像以非 root 用户运行，仅挂载业务数据和受保护的密钥／配置。使用新命名卷部署，保留旧卷作为独立归档。双平台 smoke 使用 scripts/smoke.py；OCI 构建和容器运行需本机 Docker，未运行时不声称容器验收通过。

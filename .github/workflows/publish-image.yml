@@ -1,0 +1,85 @@
+name: Publish Docker image
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Docker image tag (for example: v0.3.0)'
+        required: true
+        type: string
+      push_latest:
+        description: 'Also publish this image as latest'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+# Serialize releases so concurrent runs cannot race to update latest.
+concurrency:
+  group: publish-docker-image
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Validate tag and prepare image tags
+        id: image
+        shell: python
+        env:
+          IMAGE_TAG: ${{ inputs.tag }}
+          PUSH_LATEST: ${{ inputs.push_latest }}
+        run: |
+          import os
+          import re
+
+          tag = os.environ["IMAGE_TAG"]
+          if not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}", tag):
+              raise SystemExit("Invalid Docker tag: use 1-128 ASCII letters, digits, underscores, dots or hyphens; start with a letter, digit or underscore.")
+
+          image = "ghcr.io/" + os.environ["GITHUB_REPOSITORY"].lower()
+          tags = [f"{image}:{tag}"]
+          if os.environ["PUSH_LATEST"] == "true" and tag != "latest":
+              tags.append(f"{image}:latest")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write("tags<<EOF\n" + "\n".join(tags) + "\nEOF\n")
+
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.image.outputs.tags }}
+          build-args: |
+            VERSION=${{ inputs.tag }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ inputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
