@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -137,6 +138,9 @@ func (r *OfficialRetriever) retrieveOnce(ctx context.Context, q Query) ([]eviden
 		return nil, nil
 	}
 	term := strings.TrimSpace(q.Gene + " " + q.HGVS)
+	if r.Database == "pubmed" && q.HGVS != "" {
+		term = sequenceLiteratureTerm(q)
+	}
 	if r.Database == "pubmed" {
 		switch q.Purpose {
 		case "functional_evidence":
@@ -221,7 +225,12 @@ func (r *OfficialRetriever) retrieveOnce(ctx context.Context, q Query) ([]eviden
 		var out []evidence.Source
 		for _, a := range records.Articles {
 			c := a.Citation
+			content := c.Article.Title + " " + strings.Join(c.Article.Abstract.Text, " ")
+			if q.Gene != "" && !regexp.MustCompile(`(?i)(^|[^A-Za-z0-9])`+regexp.QuoteMeta(q.Gene)+`([^A-Za-z0-9]|$)`).MatchString(content) {
+				continue
+			}
 			src := evidence.Source{ID: "PMID-" + c.PMID, Type: evidence.SourceTypePubMed, PMID: c.PMID, Title: c.Article.Title, Snippet: strings.Join(c.Article.Abstract.Text, " "), URL: "https://pubmed.ncbi.nlm.nih.gov/" + c.PMID + "/", IdentifierValid: true, RecordExists: true, RetrievedAt: time.Now().UTC().Format(time.RFC3339), ValidationStatus: evidence.ValidationUnverified}
+			src.ObjectMatched = sequenceObjectMatched(q, content)
 			var pmc string
 			for _, id := range a.Data.IDs {
 				if id.Type == "doi" {

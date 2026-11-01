@@ -127,6 +127,10 @@ func (d *directedRetrieval) Next(ctx context.Context) error {
 		found, available, err := d.Fetch(ctx, query)
 		finding.Requests = d.Count() - before
 		finding.Records = len(found)
+		objectMismatch := query.VariantType == "snv" && need.Purpose == "variant_conflict" && len(found) > 0
+		for _, source := range found {
+			objectMismatch = objectMismatch && source.RecordExists && !source.ObjectMatched
+		}
 		d.Sources = evidence.MergeSourceRecords(d.Sources, found)
 		if d.Publish != nil {
 			d.Publish(d.Sources)
@@ -135,6 +139,9 @@ func (d *directedRetrieval) Next(ctx context.Context) error {
 		case !available || err != nil:
 			finding.Status = "unavailable"
 			finding.Reason = "retrieval_unavailable"
+		case objectMismatch:
+			finding.Status = "not_applicable"
+			finding.Reason = "retrieved_records_do_not_match_fixed_variant"
 		case len(found) == 0:
 			finding.Status = "not_found"
 			finding.Reason = "query_returned_no_records"
@@ -171,6 +178,9 @@ func (d *directedRetrieval) View() map[string]any {
 			if finding.Status == "conflicting" {
 				status = "conflicting"
 				break
+			}
+			if finding.Status == "not_applicable" && status == "not_found" {
+				status = "not_applicable"
 			}
 			if finding.Status == "pending_review" || finding.Status == "supported" {
 				status = "available"

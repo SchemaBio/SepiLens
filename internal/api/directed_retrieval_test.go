@@ -124,3 +124,15 @@ func TestDirectedRetrievalSkipsSupportedGapsAndStopsOnCancellation(t *testing.T)
 		t.Fatal("cancellation issued a query")
 	}
 }
+
+func TestVariantConflictRetrievalDistinguishesMismatchedRecords(t *testing.T) {
+	d := &directedRetrieval{Query: retrieval.Query{VariantType: "snv"}, Needs: []retrievalNeed{{Purpose: "variant_conflict"}}, Count: func() int { return 0 }, Fetch: func(context.Context, retrieval.Query) ([]evidence.Source, bool, error) {
+		return []evidence.Source{{ID: "public-other-allele", RecordExists: true, ObjectMatched: false}}, true, nil
+	}}
+	if err := d.Next(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if d.Findings[0].Status != "not_applicable" || d.Unavailable() || d.View()["status"] != "not_applicable" {
+		t.Fatal(d.Findings)
+	}
+}

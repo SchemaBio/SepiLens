@@ -37,6 +37,7 @@ type Query struct {
 	Alt             string   `json:"alt,omitempty"`
 	Gene            string   `json:"gene,omitempty"`
 	DiseaseID       string   `json:"disease_id,omitempty"`
+	ProteinHGVS     string   `json:"protein_hgvs,omitempty"`
 	HGVS            string   `json:"hgvs,omitempty"`
 	VariantType     string   `json:"variant_type"` // "snv", "cnv_loss", "cnv_gain"
 	Mode            Mode     `json:"mode"`

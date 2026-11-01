@@ -32,6 +32,7 @@ func TestAIOnlyOptionalApprovalKeepsFormalRulesDisabled(t *testing.T) {
 			}
 			if id == "acmg_amp_2015" {
 				req.Package.AIContext = &assessment.AIContext{}
+				mockSVCSearch(s) // Approval/billing isolation: retrieval is available in this fixture.
 			}
 			s.cfg.BillACMGAI = id == "acmg_amp_2015"
 			s.cfg.AllowUnapprovedAI = false

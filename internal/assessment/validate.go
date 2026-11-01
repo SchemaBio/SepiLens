@@ -130,8 +130,12 @@ func Validate(r *Request) error {
 		if !(inferContext && v.Gene == "") && !regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,80}$`).MatchString(v.Gene) || len(v.Ref) > 10000 || len(v.Alt) > 10000 {
 			return bad("invalid gene or allele length")
 		}
-		for _, text := range []string{v.Transcript, v.HGVSc, v.HGVSp, v.Consequence} {
-			if len(text) > 512 || strings.ContainsAny(text, " \t\r\n\"<>{}") {
+		for name, text := range map[string]string{"transcript": v.Transcript, "hgvs_c": v.HGVSc, "hgvs_p": v.HGVSp, "consequence": v.Consequence} {
+			blocked := " \t\r\n\"<>{}"
+			if name == "hgvs_c" || name == "hgvs_p" {
+				blocked = " \t\r\n\"<{}"
+			}
+			if len(text) > 512 || strings.ContainsAny(text, blocked) {
 				return bad("invalid structured variant annotation")
 			}
 		}
@@ -398,6 +402,9 @@ func Normalize(r Request) (Request, error) {
 	var out Request
 	e = json.Unmarshal(b, &out)
 	if e == nil {
+		if out.Variant != nil {
+			out.Variant.Consequence = acmg2015.CanonicalConsequence(out.Variant.Consequence)
+		}
 		e = Validate(&out)
 	}
 	if out.Package.Annotations != nil {
