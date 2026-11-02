@@ -24,6 +24,7 @@ type Request struct {
 	Options       Options                       `json:"options"`
 }
 type Options struct {
+	Locale            string `json:"locale,omitempty"`
 	AllowExperimental bool   `json:"allow_experimental,omitempty"`
 	ProviderProfileID string `json:"provider_profile_id,omitempty"`
 	MaxSearches       int    `json:"max_searches,omitempty"`

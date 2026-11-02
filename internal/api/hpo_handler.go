@@ -9,9 +9,11 @@ import (
 
 	"github.com/pzweuj/sepilens/internal/hpo"
 	"github.com/pzweuj/sepilens/internal/llm/responses"
+	"github.com/pzweuj/sepilens/internal/outputlocale"
 )
 
 type HPOExtractOptions struct {
+	Locale             string `json:"locale,omitempty"`
 	ProviderProfileID  string `json:"provider_profile_id"`
 	MaxCandidates      int    `json:"max_candidates,omitempty"`
 	AllowLocalFallback bool   `json:"allow_local_fallback,omitempty"`
@@ -30,7 +32,7 @@ func (s *Server) handleHPOExtract(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	if strings.TrimSpace(req.Text) == "" || utf8.RuneCountInString(req.Text) > 10000 || req.Options.MaxCandidates < 0 || req.Options.MaxCandidates > 100 || req.Options.AllowLocalFallback {
+	if !outputlocale.Valid(req.Options.Locale) || strings.TrimSpace(req.Text) == "" || utf8.RuneCountInString(req.Text) > 10000 || req.Options.MaxCandidates < 0 || req.Options.MaxCandidates > 100 || req.Options.AllowLocalFallback {
 		WriteError(w, r, 422, ErrCodeBadRequest, "text must contain 1–10000 characters; AI-only extraction, at most 100 candidates", false)
 		return
 	}
@@ -58,7 +60,7 @@ func (s *Server) handleHPOExtract(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 180*time.Second)
 	defer cancel()
-	result, err := s.hpoExtractor.Extract(ctx, req.Text, hpo.ExtractOptions{Provider: provider, Model: profile.Config.Model, MaxCandidates: req.Options.MaxCandidates, AllowLocalFallback: false})
+	result, err := s.hpoExtractor.Extract(ctx, req.Text, hpo.ExtractOptions{Locale: req.Options.Locale, Provider: provider, Model: profile.Config.Model, MaxCandidates: req.Options.MaxCandidates, AllowLocalFallback: false})
 	if err != nil {
 		WriteError(w, r, 503, ErrCodeAIOutputInvalid, "AI HPO extraction failed; no local fallback was used", true)
 		return

@@ -82,6 +82,11 @@ func ValidCode(id, code string) bool {
 	return false
 }
 func Validate(r *Request) error {
+	switch r.Options.Locale {
+	case "", "zh-CN", "zh-Hant", "en", "es-419":
+	default:
+		return fmt.Errorf("unsupported output locale")
+	}
 	bad := func(s string) error { return errors.New(s) }
 	inferContext := InferClinicalContext(*r)
 	if r.Package.AIContext != nil && !inferContext {
