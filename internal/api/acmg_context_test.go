@@ -89,7 +89,7 @@ func testSequenceAIReportsUnavailableLiteratureWithoutLocalFallback(t *testing.T
 			if hasQuality != chain {
 				t.Fatal("quality gate failed")
 			}
-			if j.Status != jobs.StatusSucceeded || calls.Load() != 2 || proposal["ai_assessment"] == nil || proposal["retrieval_status"] != "unavailable" || result.SettlementEligible {
+			if j.Status != jobs.StatusSucceeded || calls.Load() != 2 || proposal["ai_assessment"] == nil || proposal["retrieval_status"] != "unavailable" || !result.SettlementEligible {
 				t.Fatal(j.Status, result)
 			}
 			if result.ClinicalUse != "forbidden" {

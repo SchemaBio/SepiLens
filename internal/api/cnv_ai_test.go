@@ -104,7 +104,7 @@ func testCNVAutomaticContextPrefetchAndBilling(t *testing.T, chain bool) {
 				if result.AgentProposal.(map[string]any)["ai_assessment"].(map[string]any)["cnv_context"] == nil {
 					t.Fatal("CNV inferred context lost in delivery")
 				}
-				if j.Status != jobs.StatusSucceeded || result.SettlementEligible != online || result.ClinicalUse != "forbidden" || result.ResultKind != "evidence_only" {
+				if j.Status != jobs.StatusSucceeded || !result.SettlementEligible || result.ClinicalUse != "forbidden" || result.ResultKind != "evidence_only" {
 					t.Fatal(j.Status, result.FailureCode, result.SettlementEligible)
 				}
 				for _, c := range s.descriptors() {

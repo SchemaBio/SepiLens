@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/pzweuj/sepilens/internal/agent"
@@ -399,13 +398,14 @@ func (s *Server) runAIV2(ctx context.Context, t workflow.Task, in evaluationInpu
 	if in.Request.EngineID == "svc_v4" {
 		result.AgentProposal = map[string]any{"ai_assessment": proposal, "reconciliation": audit, "major_override": false, "experimental_result": merged}
 	}
-	if ((s.cfg.BillACMGAI && t.EngineID == "acmg_amp_2015" && t.Kind == "evidence_only") || (s.cfg.BillSVCAI && t.EngineID == "svc_v4" && t.Kind == "experimental") || (s.cfg.BillCNVAI && in.Request.CNV != nil && t.Kind == "evidence_only")) && strings.TrimSpace(proposal.ClinicalSummary) != "" && len(proposal.Criteria) > 0 {
+	// A delivered AI result is billable when this engine's AI billing is enabled.
+	// Literature retrieval is optional and affects evidence provenance, not delivery.
+	if (s.cfg.BillACMGAI && t.EngineID == "acmg_amp_2015" && t.Kind == "evidence_only") || (s.cfg.BillSVCAI && t.EngineID == "svc_v4" && t.Kind == "experimental") || (s.cfg.BillCNVAI && in.Request.CNV != nil && t.Kind == "evidence_only") {
 		result.SettlementEligible = true
 	}
 	result.AgentProposal.(map[string]any)["sources"] = snap.Sources
 	if retrievalUnavailable {
 		result.AgentProposal.(map[string]any)["retrieval_status"] = "unavailable"
-		result.SettlementEligible = false
 	}
 	if s.cfg.AIEvidenceChain {
 		quality := evidenceQuality(base, proposal, snap.Sources)
