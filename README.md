@@ -4,6 +4,8 @@ SepiLens 是供 YiJian 调用的 Go 变异评估服务。YiJian 提交结构化�
 
 支持 ACMG/AMP 2015、SVC v4 锁定草案、CNV Gain 和 CNV Loss 的本地／LLM 联网入口。本地同步返回，联网异步执行。SVC v4 始终为实验用途，仍有上游草案的适用性缺口；其他医学引擎需独立病例验证和签名批准。所有医学引擎及 AI 默认禁用。 ACMG AI 以及显式允许实验的 SVC AI 可使用 `evidence_package.ai_context` 导入位点与样本临床信息，缺失临床字段保留未知并由模型整理；该上下文不适用于本地评估，也不会成为已核验的草案计分材料。模型输出经校验后由规则引擎重算，工程交付不代表医学批准。
 
+评估结果分为 `agent_proposal`（智能体提议）、`rule_engine_result`（规则引擎计算）和 `reviewer_decision`（人工审核判定）。
+
 ## 启动
 
 需要 Go 1.26。构建 `go build -o sepilens.exe ./cmd/sepilens`（Linux 输出 sepilens），复制 `.env.example` 为 `.env`，配置 API Key、32字节主密钥及来源策略，然后运行 `sepilens serve -env-file .env`。公网部署使用 HTTPS 反向代理。无需医学数据库或资源下载。
