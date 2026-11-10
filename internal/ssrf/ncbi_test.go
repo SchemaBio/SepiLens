@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"testing"
+	"time"
 )
 
 func TestNCBIFakeIPExceptionIsNarrow(t *testing.T) {
@@ -33,11 +34,19 @@ func TestNCBIFakeIPExceptionIsNarrow(t *testing.T) {
 	}
 	resolver := &fixedResolver{ips: []net.IPAddr{{IP: net.ParseIP("198.18.0.151")}, {IP: net.ParseIP("127.0.0.1")}}}
 	request, _ := http.NewRequest("GET", "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi", nil)
-	if _, err := newHTTPClient(false, resolver, "eutils.ncbi.nlm.nih.gov").Do(request); !errors.Is(err, ErrBlockedEndpoint) {
+	if _, err := newHTTPClient(false, resolver, "eutils.ncbi.nlm.nih.gov", defaultResponseHeaderTimeout).Do(request); !errors.Is(err, ErrBlockedEndpoint) {
 		t.Fatal("mixed private DNS accepted", err)
 	}
 	resolver.ips = resolver.ips[:1]
 	if _, err := NewHTTPClient(false, resolver).Do(request); !errors.Is(err, ErrBlockedEndpoint) {
 		t.Fatal("default DNS guard weakened", err)
+	}
+}
+
+func TestModelHTTPClientTimeout(t *testing.T) {
+	client := NewModelHTTPClient(false)
+	transport := client.Transport.(*guardTransport).next.(*http.Transport)
+	if client.Timeout != 120*time.Second || transport.ResponseHeaderTimeout != 0 {
+		t.Fatalf("unexpected model timeouts: client=%s, headers=%s", client.Timeout, transport.ResponseHeaderTimeout)
 	}
 }

@@ -411,7 +411,7 @@ func (q *Queue) complete(ctx context.Context, t Task, owner string, result any, 
 		status, stage = "failed", "failed"
 		code := partial.Code
 		switch code {
-		case "AI_OUTPUT_INVALID", "AI_PROVIDER_UNAVAILABLE", "AI_TOOL_BUDGET_EXCEEDED":
+		case "AI_OUTPUT_INVALID", "AI_PROVIDER_UNAVAILABLE", "AI_PROVIDER_TIMEOUT", "AI_TOOL_BUDGET_EXCEEDED":
 		default:
 			code = "EXECUTION_FAILED"
 		}

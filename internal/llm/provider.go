@@ -7,6 +7,7 @@ import (
 )
 
 var ErrInvalidOutput = errors.New("invalid model output")
+var ErrRequestTimeout = errors.New("model request timed out")
 
 // ErrOutputLimit is a completed transport with truncated generation, not a connection failure.
 var ErrOutputLimit = errors.New("model output token limit")

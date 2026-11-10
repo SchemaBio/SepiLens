@@ -104,6 +104,14 @@ func runContract(ctx context.Context, p llm.Provider, input any, execute ToolExe
 		out.InputTokens += response.InputTokens
 		out.OutputTokens += response.OutputTokens
 		if err != nil {
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				out.ProviderFailure = "deadline_exceeded"
+				return out, llm.ErrRequestTimeout
+			}
+			if errors.Is(err, llm.ErrRequestTimeout) {
+				out.ProviderFailure = "request_timed_out"
+				return out, err
+			}
 			if errors.Is(err, llm.ErrOutputLimit) {
 				out.ProviderFailure = "output_token_limit"
 				// One bounded continuation under the existing request and deadline.
@@ -142,9 +150,6 @@ func runContract(ctx context.Context, p llm.Provider, input any, execute ToolExe
 				out.ProviderFailure = "no_choices"
 			case "incomplete tool call output":
 				out.ProviderFailure = "tool_output_incomplete"
-			}
-			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				out.ProviderFailure = "deadline_exceeded"
 			}
 			return out, ErrProvider
 		}

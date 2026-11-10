@@ -15,9 +15,18 @@ type Resolver interface {
 	LookupIPAddr(context.Context, string) ([]net.IPAddr, error)
 }
 
+const defaultResponseHeaderTimeout = 30 * time.Second
+
 // NewHTTPClient pins each connection to a validated DNS answer and disables proxy/redirect bypasses.
 func NewHTTPClient(allowPrivate bool, resolver Resolver) *http.Client {
-	return newHTTPClient(allowPrivate, resolver, "")
+	return newHTTPClient(allowPrivate, resolver, "", defaultResponseHeaderTimeout)
+}
+
+// NewModelHTTPClient lets slow model responses use the full client timeout.
+func NewModelHTTPClient(allowPrivate bool) *http.Client {
+	client := newHTTPClient(allowPrivate, nil, "", 0)
+	client.Timeout = 120 * time.Second
+	return client
 }
 
 // NewNCBIRetrievalClient explicitly supports local Fake-IP DNS for this fixed
@@ -27,15 +36,15 @@ func NewNCBIRetrievalClient(allowFakeIP bool) *http.Client {
 	if !allowFakeIP {
 		return NewHTTPClient(false, nil)
 	}
-	return newHTTPClient(false, nil, "eutils.ncbi.nlm.nih.gov")
+	return newHTTPClient(false, nil, "eutils.ncbi.nlm.nih.gov", defaultResponseHeaderTimeout)
 }
 
-func newHTTPClient(allowPrivate bool, resolver Resolver, fakeIPHost string) *http.Client {
+func newHTTPClient(allowPrivate bool, resolver Resolver, fakeIPHost string, responseHeaderTimeout time.Duration) *http.Client {
 	if resolver == nil {
 		resolver = net.DefaultResolver
 	}
 	d := &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
-	tr := &http.Transport{TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12}, ForceAttemptHTTP2: true, MaxIdleConns: 32, IdleConnTimeout: 60 * time.Second, TLSHandshakeTimeout: 10 * time.Second, ResponseHeaderTimeout: 30 * time.Second}
+	tr := &http.Transport{TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12}, ForceAttemptHTTP2: true, MaxIdleConns: 32, IdleConnTimeout: 60 * time.Second, TLSHandshakeTimeout: 10 * time.Second, ResponseHeaderTimeout: responseHeaderTimeout}
 	tr.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
 		host, port, err := net.SplitHostPort(address)
 		if err != nil {

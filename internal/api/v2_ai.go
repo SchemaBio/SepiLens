@@ -109,6 +109,9 @@ func (s *Server) runAIV2(ctx context.Context, t workflow.Task, in evaluationInpu
 			return nil
 		}
 		code := "AI_PROVIDER_UNAVAILABLE"
+		if errors.Is(err, llm.ErrRequestTimeout) {
+			code = "AI_PROVIDER_TIMEOUT"
+		}
 		if errors.Is(err, agent.ErrOutputInvalid) {
 			code = "AI_OUTPUT_INVALID"
 		}

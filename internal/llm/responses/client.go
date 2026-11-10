@@ -10,6 +10,7 @@ import (
 	"github.com/pzweuj/sepilens/internal/llm"
 	"github.com/pzweuj/sepilens/internal/ssrf"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -43,7 +44,7 @@ func NewClient(cfg Config) (*Client, error) {
 	if cfg.Protocol != llm.ProtocolOpenAIResponses && cfg.Protocol != llm.ProtocolOpenAIChat {
 		return nil, errors.New("unsupported model protocol")
 	}
-	return &Client{cfg: cfg, http: ssrf.NewHTTPClient(cfg.AllowPrivate, nil)}, nil
+	return &Client{cfg: cfg, http: ssrf.NewModelHTTPClient(cfg.AllowPrivate)}, nil
 }
 func (c *Client) Capabilities(context.Context) (llm.ModelCapabilities, error) {
 	c.mu.Lock()
@@ -179,6 +180,9 @@ func (c *Client) request(ctx context.Context, r llm.GenerateRequest, stream bool
 	req.Header.Set("Content-Type", "application/json")
 	res, err := c.http.Do(req)
 	if err != nil {
+		if modelRequestTimedOut(err) {
+			return nil, llm.ErrRequestTimeout
+		}
 		return nil, errors.New("model transport unavailable")
 	}
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
@@ -186,6 +190,11 @@ func (c *Client) request(ctx context.Context, r llm.GenerateRequest, stream bool
 		return nil, fmt.Errorf("model request failed (HTTP %d)", res.StatusCode)
 	}
 	return res, nil
+}
+
+func modelRequestTimedOut(err error) bool {
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
 }
 
 type wire struct {
@@ -234,6 +243,9 @@ func (c *Client) Generate(ctx context.Context, r llm.GenerateRequest) (llm.Gener
 	defer res.Body.Close()
 	b, err := io.ReadAll(io.LimitReader(res.Body, 4<<20))
 	if err != nil {
+		if modelRequestTimedOut(err) {
+			return llm.GenerateResult{}, llm.ErrRequestTimeout
+		}
 		return llm.GenerateResult{}, errors.New("model response unreadable")
 	}
 	var w wire
@@ -388,6 +400,10 @@ func (c *Client) Stream(ctx context.Context, r llm.GenerateRequest) (<-chan llm.
 					return
 				}
 			}
+		}
+		if modelRequestTimedOut(sc.Err()) {
+			send(llm.ModelEvent{Type: "error", Content: llm.ErrRequestTimeout.Error()})
+			return
 		}
 		if sc.Err() != nil || !done {
 			send(llm.ModelEvent{Type: "error", Content: "model stream interrupted"})

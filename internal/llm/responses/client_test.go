@@ -3,12 +3,14 @@ package responses_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/pzweuj/sepilens/internal/llm"
 	"github.com/pzweuj/sepilens/internal/llm/responses"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func TestProtocolsGenerateAndStream(t *testing.T) {
@@ -94,5 +96,18 @@ func TestSSRFAndSanitizedErrors(t *testing.T) {
 	_, e := c.Generate(context.Background(), llm.GenerateRequest{})
 	if e == nil || e.Error() != "model request failed (HTTP 401)" {
 		t.Fatal(e)
+	}
+}
+
+func TestModelRequestReportsSanitizedTimeout(t *testing.T) {
+	client, err := responses.NewClient(responses.Config{BaseURL: "https://example.com", APIKey: "test-key", Model: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithDeadline(context.Background(), time.Unix(0, 0))
+	defer cancel()
+	_, err = client.Generate(ctx, llm.GenerateRequest{Prompt: "synthetic input"})
+	if !errors.Is(err, llm.ErrRequestTimeout) {
+		t.Fatalf("expected sanitized timeout, got %v", err)
 	}
 }
